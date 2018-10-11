@@ -199,13 +199,25 @@ def test_domain_vs_halo():
 @skipif_yask  # YASK backend does not support MPI yet
 class TestMPIData(object):
 
-#    @pytest.mark.parallel(nprocs=4)
-#    def test_domain_view(self):
-#        grid = Grid(shape=(4, 4))
-#        u = Function(name='u', grid=grid)
-#
-#        u.data[:] = grid.distributor.myrank
-#        from IPython import embed; embed()
+    @pytest.mark.parallel(nprocs=4)
+    def test_data_localviews(self):
+        grid = Grid(shape=(4, 4))
+        u = Function(name='u', grid=grid)
+
+        u.data[:] = grid.distributor.myrank
+
+        assert u.data_ro_domain._local[0, 0] == grid.distributor.myrank
+        assert u.data_ro_domain._local[1, 1] == grid.distributor.myrank
+        assert u.data_ro_domain._local[-1, -1] == grid.distributor.myrank
+
+        assert u.data_ro_with_halo._local[0, 0] == 0.
+        assert u.data_ro_with_halo._local[1, 1] == grid.distributor.myrank
+        assert u.data_ro_with_halo._local[2, 2] == grid.distributor.myrank
+        assert np.all(u.data_ro_with_halo._local[1:3, 1:3] == grid.distributor.myrank)
+        assert np.all(u.data_ro_with_halo._local[0] == 0.)
+        assert np.all(u.data_ro_with_halo._local[3] == 0.)
+        assert np.all(u.data_ro_with_halo._local[:, 0] == 0.)
+        assert np.all(u.data_ro_with_halo._local[:, 3] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_trivial_insertion(self):
@@ -218,7 +230,7 @@ class TestMPIData(object):
         assert np.all(u.data._global == 1.)
 
     @pytest.mark.parallel(nprocs=4)
-    def test_local_indexing_basic(self):
+    def test_global_indexing_basic(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -249,7 +261,7 @@ class TestMPIData(object):
             assert np.all(u.data[:, 2] == [myrank, myrank])
 
     @pytest.mark.parallel(nprocs=4)
-    def test_local_indexing_slicing(self):
+    def test_global_indexing_slicing(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -275,6 +287,52 @@ class TestMPIData(object):
         else:
             assert np.all(u.data[2:, 2:] == myrank)
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
+
+    @pytest.mark.parallel(nprocs=4)
+    def test_global_indexing_after_slicing(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        glb_pos_map = grid.distributor.glb_pos_map
+        myrank = grid.distributor.myrank
+        u = Function(name='u', grid=grid, space_order=0)
+
+        u.data[:] = myrank
+
+        # Note that the `1`s are global indices
+        view = u.data[1:, 1:]
+        assert np.all(view[:] == myrank)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view.shape == (1, 1)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert view.shape == (1, 2)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view.shape == (2, 1)
+        else:
+            assert view.shape == (2, 2)
+
+        # Now we further slice into the view
+        view2 = view[1:, 1:]
+        assert np.all(view2[:] == myrank)
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view2.shape == (0, 0)
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert view2.shape == (0, 2)
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert view2.shape == (2, 0)
+        else:
+            assert view2.shape == (2, 2)
+
+        # Now a change in `view2` by the only rank "sees" it should affect
+        # both `view` and `u.data`
+        view2[:] += 1
+        if RIGHT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data[:] == myrank + 1)
+            assert np.all(view[:] == myrank + 1)
+            assert np.all(view2[:] == myrank + 1)
+        else:
+            assert np.all(view[:] == myrank)
+            assert np.all(view2[:] == myrank)
+            assert view2.size == 0
 
     @pytest.mark.parallel(nprocs=4)
     def test_from_replicated_to_distributed(self):
