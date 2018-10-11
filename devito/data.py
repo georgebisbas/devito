@@ -454,6 +454,7 @@ class Data(np.ndarray):
     def __getitem__(self, glb_index):
         loc_index = self._convert_index(glb_index)
         if loc_index is NONLOCAL:
+            # Caller expects a scalar, which it doesn't own though, so it gets None
             return None
         else:
             return super(Data, self).__getitem__(loc_index)
@@ -493,7 +494,12 @@ class Data(np.ndarray):
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
         # Finally, perform the actual __setitem__
-        super(Data, self).__setitem__(loc_index, val)
+        try:
+            super(Data, self).__setitem__(loc_index, val)
+        except:
+            from mpi4py import MPI
+            print("rank:", MPI.COMM_WORLD.rank, val_index, glb_index, self.shape, loc_index)
+            super(Data, self).__setitem__(loc_index, val)
 
     def _convert_index(self, index):
         index = index_normalize(index)

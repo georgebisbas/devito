@@ -341,6 +341,7 @@ class TestMPIData(object):
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
         u = Function(name='u', grid=grid, space_order=0)  # distributed
+        v = Function(name='v', grid=grid, space_order=0)  # distributed
         a = np.arange(16).reshape(shape)  # replicated
 
         # Full array
@@ -355,21 +356,29 @@ class TestMPIData(object):
             assert np.all(u.data == [[10, 11], [14, 15]])
 
         # Subsection
-        # TODO: won't work until we support glb_to_loc conversion for sliced Data
-        # u.data[:] = 0
-        # u.data[1:3, 1:3] = a[1:3, 1:3]
-
-        # Same as before but with negative indices
-        # TODO: same as before
-        # u.data[1:-1, 1:-1] = a[1:3, 1:3]
+        u.data[:] = 0
+        u.data[1:3, 1:3] = a[1:3, 1:3]
+        # Same as above but with negative indices
+        v.data[:] = 0
+        v.data[1:3, 1:3] = a[1:-1, 1:-1]
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 0], [0, 5]])
+            assert np.all(v.data == [[0, 0], [0, 5]])
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 0], [6, 0]])
+            assert np.all(v.data == [[0, 0], [6, 0]])
+        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+            assert np.all(u.data == [[0, 9], [0, 0]])
+            assert np.all(v.data == [[0, 9], [0, 0]])
+        else:
+            assert np.all(u.data == [[10, 0], [0, 0]])
+            assert np.all(v.data == [[10, 0], [0, 0]])
 
         # The assigned data must have same shape as the one of the distributed array,
         # otherwise an exception is expected
-        # TODO: same as before
-
-    @pytest.mark.parallel(nprocs=4)
-    def test_from_distributed_to_distributed(self):
-        pass
+        #try:
+        u.data[1:3, 1:3] = a[1:2, 1:2]
+        #excpe
 
 
 def test_scalar_arg_substitution(t0, t1):
