@@ -416,10 +416,10 @@ class Data(np.ndarray):
             # Note: the decomposition needs to be updated based on the view extent
             offsets = numpy_view_offsets(self, obj._datatop)
             assert len(obj._datatop._decomposition) == len(offsets)
-            # TODO: failing here with test_basic_indexing
-            full_decomposition = [i.reshape(-lofs, -rofs) for i, (lofs, rofs)
-                                  in zip(obj._datatop._decomposition, offsets)]
-            self._decomposition = tuple(i for i in full_decomposition if i != (0, 0))
+            decomposition = []
+            for i, (lofs, rofs) in zip(obj._datatop._decomposition, offsets):
+                decomposition.append(i if i is None else i.reshape(-lofs, -rofs))
+            self._decomposition = tuple(decomposition)
         # Views or references created via operations on `obj` do not get an
         # explicit reference to the underlying data (`_memfree_args`). This makes sure
         # that only one object (the "root" Data) will free the C-allocated memory
@@ -444,7 +444,8 @@ class Data(np.ndarray):
         if isinstance(self.base, Data):
             return self.base._datatop
         else:
-            assert isinstance(self.base, np.ndarray)
+            if self.base is not None:
+                assert isinstance(self.base, np.ndarray)
             return self
 
     def __repr__(self):
