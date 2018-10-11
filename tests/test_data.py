@@ -199,6 +199,14 @@ def test_domain_vs_halo():
 @skipif_yask  # YASK backend does not support MPI yet
 class TestMPIData(object):
 
+#    @pytest.mark.parallel(nprocs=4)
+#    def test_domain_view(self):
+#        grid = Grid(shape=(4, 4))
+#        u = Function(name='u', grid=grid)
+#
+#        u.data[:] = grid.distributor.myrank
+#        from IPython import embed; embed()
+
     @pytest.mark.parallel(nprocs=4)
     def test_trivial_insertion(self):
         grid = Grid(shape=(4, 4))
@@ -344,4 +352,5 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    TestMPIData().test_local_indexing_basic()
+    test_basic_indexing()
+    TestMPIData().test_domain_view()
