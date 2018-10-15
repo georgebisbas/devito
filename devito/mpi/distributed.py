@@ -148,7 +148,7 @@ class Distributor(object):
     def glb_shape(self):
         return EnrichedTuple(*self._glb_shape, getters=self.dimensions)
 
-    @property
+    @cached_property
     def glb_numb(self):
         """Return the global numbering of this process' domain section."""
         assert len(self.mycoords) == len(self._glb_numbs)
