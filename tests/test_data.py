@@ -357,6 +357,7 @@ class TestMPIData(object):
 
         # Subsection
         u.data[:] = 0
+        from IPython import embed; embed()
         u.data[1:3, 1:3] = a[1:3, 1:3]
         # Same as above but with negative indices
         v.data[:] = 0
@@ -419,5 +420,4 @@ def test_oob_guard():
 if __name__ == "__main__":
     from devito import configuration
     configuration['mpi'] = True
-    test_basic_indexing()
-    TestMPIData().test_domain_view()
+    TestMPIData().test_from_replicated_to_distributed()

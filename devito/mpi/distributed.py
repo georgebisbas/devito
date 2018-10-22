@@ -487,7 +487,7 @@ class Decomposition(tuple):
 
     def convert_index(self, *args):
         """
-        Translate a global index into a local index.
+        Convert a global index into a relative local index.
 
         Parameters
         ----------
@@ -501,18 +501,17 @@ class Decomposition(tuple):
               offset and a side, return the relative local offset. This
               can be 0 if the local subdomain doesn't intersect with the
               region defined by the given global offset.
-            * (int, int).  Given global ``(min, max)``, return a 2-tuple
-              ``(min', max')``, where ``min'`` and ``max'`` can be either
-              None or int:
-                - ``min'=None`` means that ``min`` does not belong to the
-                  local subdomain, but it precedes its minimum. Likewise,
-                  ``max'=None`` means that ``max`` does not belong to the
-                  local subdomain, but it comes after its maximum.
-                - If ``min/max=int``, then the integer can represent
-                  either the relative local index corresponding to the
-                  provided global ``min/max``, or any random number such that
-                  ``max=min-1``, meaning that the input argument does not
-                  represent a valid range for the local subdomain.
+            * (int, int).  Given global ``(min, max)``, return ``(min', max')``
+              representing the corresponding relative local min/max. If the
+              input doesn't intersect with the local subdomain, then ``min'``
+              and ``max'`` are two unspecified ints such that ``max'=min'-n``,
+              with ``n > 1``.
+            * slice(a, b, s). Like above, with ``min=a`` and ``max=b-1``.
+
+        Raises
+        ------
+        TypeError
+            If the input doesn't adhere to any of the supported format.
 
         Examples
         --------
@@ -544,56 +543,69 @@ class Decomposition(tuple):
         >>> d.convert_index((5, 7))
         (0, 2)
         >>> d.convert_index((5, 9))
-        (0, None)
+        (0, 2)
         >>> d.convert_index((1, 3))
         (-1, -2)
         >>> d.convert_index((1, 6))
-        (None, 1)
+        (0, 1)
+        >>> d.convert_index((None, None))
+        (0, 2)
         """
 
         if len(args) == 0:
             # convert_index()
             return slice(self.loc_abs_min, self.loc_abs_max + 1)
         elif len(args) == 1:
+            glb_idx = args[0]
             base = self.loc_abs_min
-            if is_integer(args[0]):
+            if is_integer(glb_idx):
                 # convert_index(index)
-                glb_index = args[0]
                 # -> Handle negative index
-                if glb_index < 0:
-                    glb_index = self.glb_max + glb_index + 1
+                if glb_idx < 0:
+                    glb_idx = self.glb_max + glb_idx + 1
                 # -> Do the actual conversion
-                if glb_index in self.loc_abs_numb:
-                    return glb_index - base
-                elif self.glb_min <= glb_index <= self.glb_max:
+                if glb_idx in self.loc_abs_numb:
+                    return glb_idx - base
+                elif self.glb_min <= glb_idx <= self.glb_max:
                     return None
                 else:
                     # This should raise an exception when used to access a numpy.array
-                    return glb_index
+                    return glb_idx
             else:
                 # convert_index((min, max))
-                glb_index_min, glb_index_max = args[0]
+                # convert_index(slice(...))
+                if isinstance(glb_idx, tuple):
+                    if len(glb_idx) != 2:
+                        raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
+                    glb_idx_min, glb_idx_max = glb_idx
+                elif isinstance(glb_idx, slice):
+                    glb_idx_min = self.glb_min if glb_idx.start is None else glb_idx.start
+                    glb_idx_max = self.glb_max if glb_idx.stop is None else (glb_idx.stop-1)
+                else:
+                    raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
                 # -> Handle negative min/max
-                if glb_index_min is not None and glb_index_min < 0:
-                    glb_index_min = self.glb_max + glb_index_min + 1
-                if glb_index_max is not None and glb_index_max < 0:
-                    glb_index_max = self.glb_max + glb_index_max + 1
+                if glb_idx_min is not None and glb_idx_min < 0:
+                    glb_idx_min = self.glb_max + glb_idx_min + 1
+                if glb_idx_max is not None and glb_idx_max < 0:
+                    glb_idx_max = self.glb_max + glb_idx_max + 1
                 # -> Do the actual conversion
-                if glb_index_min is None or glb_index_min < base:
-                    loc_min = None
-                elif glb_index_min > self.loc_abs_max:
-                    return (-1, -2)
+                if glb_idx_min is None or glb_idx_min < base:
+                    loc_min = self.loc_rel_min
+                elif glb_idx_min > self.loc_abs_max:
+                    return (-1, -3)
                 else:
-                    loc_min = glb_index_min - base
-                if glb_index_max is None or glb_index_max > self.loc_abs_max:
-                    loc_max = None
-                elif glb_index_max < base:
-                    return (-1, -2)
+                    loc_min = glb_idx_min - base
+                if glb_idx_max is None or glb_idx_max > self.loc_abs_max:
+                    loc_max = self.loc_rel_max
+                elif glb_idx_max < base:
+                    return (-1, -3)
                 else:
-                    loc_max = glb_index_max - base
+                    loc_max = glb_idx_max - base
                 return (loc_min, loc_max)
         else:
             # convert_index(offset, side)
+            if len(args) != 2:
+                raise TypeError("Expected 0, 1, or 2 arguments, found %d" % len(args))
             rel_ofs, side = args
             if side is LEFT:
                 abs_ofs = self.glb_min + rel_ofs
@@ -605,6 +617,42 @@ class Decomposition(tuple):
                 base = self.loc_abs_max
                 extent = base - self.loc_abs_min
                 return min(base - abs_ofs, extent) if abs_ofs < base else 0
+
+    def apply_shift(self, shift, glb_idx=None):
+        """
+        Left-shift a global index by a given quantity.
+
+        Parameters
+        ----------
+        shift : int or slice
+            The left-shift value. If a slice, the start value is taken.
+        glb_idx: None or int or (int, int), optional
+            The index to which the shifting is applied. Can be a single integer,
+            a 2-tuple (min, max), or, if unspecified, the absolute local indices.
+        """
+
+        if isinstance(shift, slice):
+            shift = shift.start
+        if shift is None:
+            shift = 0
+        if not is_integer(shift):
+            raise ValueError("Cannot apply shift to type `%s`" % type(shift))
+
+        if is_integer(glb_idx):
+            return glb_idx - shift
+        elif isinstance(glb_idx, (tuple, list)):
+            return [i - shift for i in glb_idx]
+        elif isinstance(glb_idx, np.ndarray):
+            return glb_idx - shift
+        else:
+            if glb_idx is None:
+                glb_idx = self.convert_index()
+            if isinstance(glb_idx, slice):
+                return slice(max(glb_idx.start, self.loc_abs_min) - shift,
+                             min(glb_idx.stop, self.loc_abs_max + 1) - shift,
+                             glb_idx.step)
+            else:
+                raise ValueError("Cannot apply shift to type `%s`" % type(glb_idx))
 
     def reshape(self, nleft, nright):
         """

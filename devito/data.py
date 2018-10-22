@@ -451,17 +451,18 @@ class Data(np.ndarray):
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
-    def __getitem__(self, glb_index):
-        loc_index = self._convert_index(glb_index)
-        if loc_index is NONLOCAL:
-            # Caller expects a scalar, which it doesn't own though, so it gets None
+    def __getitem__(self, glb_idx):
+        loc_idx = self._convert_index(glb_idx)
+        if loc_idx is NONLOCAL:
+            # Caller expects a scalar. However, `glb_idx` doesn't belong to
+            # self's data partition, so None is returned
             return None
         else:
-            return super(Data, self).__getitem__(loc_index)
+            return super(Data, self).__getitem__(loc_idx)
 
-    def __setitem__(self, glb_index, val):
-        loc_index = self._convert_index(glb_index)
-        if loc_index is NONLOCAL:
+    def __setitem__(self, glb_idx, val):
+        loc_idx = self._convert_index(glb_idx)
+        if loc_idx is NONLOCAL:
             # no-op
             return
         elif np.isscalar(val):
@@ -478,11 +479,11 @@ class Data(np.ndarray):
             if self._is_distributed:
                 # `val` is replicated, `self` is distributed -> `val` gets distributed
                 if self._glb_indexing:
-                    glb_index = index_normalize(glb_index)
-                    glb_index = glb_index + (slice(None),)*(self.ndim - len(glb_index))
-                    val_index = [index_apply_offset(dec(), i) if dec is not None else i
-                                 for dec, i in zip(self._decomposition, glb_index)]
-                    val = val[val_index]
+                    glb_idx = index_normalize(glb_idx)
+                    glb_idx = glb_idx + (slice(None),)*(self.ndim - len(glb_idx))
+                    val_idx = [dec.apply_shift(i) if dec is not None else i
+                               for dec, i in zip(self._decomposition, glb_idx)]
+                    val = val[val_idx]
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
@@ -494,12 +495,9 @@ class Data(np.ndarray):
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 
         # Finally, perform the actual __setitem__
-        try:
-            super(Data, self).__setitem__(loc_index, val)
-        except:
-            from mpi4py import MPI
-            print("rank:", MPI.COMM_WORLD.rank, val_index, glb_index, self.shape, loc_index)
-            super(Data, self).__setitem__(loc_index, val)
+        # Note: we pass `glb_idx`, rather than `loc_idx`, as __setitem__ calls
+        # `__getitem__`, which in turn expects a global index
+        super(Data, self).__setitem__(glb_idx, val)
 
     def _convert_index(self, index):
         index = index_normalize(index)
@@ -564,26 +562,6 @@ def index_is_basic(index):
     return all(is_integer(i) or (i is NONLOCAL) for i in index)
 
 
-def index_apply_offset(index, ofs):
-    if isinstance(ofs, slice):
-        ofs = ofs.start
-    if ofs is None:
-        ofs = 0
-    if not is_integer(ofs):
-        raise ValueError("Cannot apply offset of type `%s`" % type(ofs))
-
-    if is_integer(index):
-        return index - ofs
-    elif isinstance(index, slice):
-        return slice(index.start - ofs, index.stop - ofs, index.step)
-    elif isinstance(index, (tuple, list)):
-        return [i - ofs for i in index]
-    elif isinstance(index, np.ndarray):
-        return index - ofs
-    else:
-        raise ValueError("Cannot apply offset to index of type `%s`" % type(index))
-
-
 def index_apply_modulo(index, modulo):
     if is_integer(index):
         return index % modulo
@@ -613,7 +591,8 @@ def index_glb_to_loc(index, decomposition):
     if is_integer(index):
         return decomposition(index)
     elif isinstance(index, slice):
-        return slice(*decomposition((index.start, index.stop)), index.step)
+        loc_min, loc_max = decomposition(index)
+        return slice(loc_min, loc_max + 1, index.step)
     elif isinstance(index, (tuple, list)):
         return [decomposition(i) for i in index]
     elif isinstance(index, np.ndarray):
