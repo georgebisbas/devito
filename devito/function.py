@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from itertools import product
 
 import sympy
@@ -250,7 +250,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def staggered(self):
         return self._staggered
 
-    @property
+    @cached_property
     def shape(self):
         """
         Shape of the domain associated with this :class:`TensorFunction`.
@@ -259,7 +259,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return self.shape_domain
 
-    @property
+    @cached_property
     def shape_domain(self):
         """
         Shape of the domain associated with this :class:`TensorFunction`.
@@ -272,7 +272,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return tuple(i - j for i, j in zip(self._shape, self.staggered))
 
-    @property
+    @cached_property
     def shape_with_halo(self):
         """
         Shape of the domain plus the read-only stencil boundary associated
@@ -280,7 +280,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_domain, self._halo))
 
-    @property
+    @cached_property
     def shape_allocated(self):
         """
         Shape of the allocated data associated with this :class:`Function`.
@@ -288,6 +288,40 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         padding outside of the halo.
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
+
+    @cached_property
+    def _mask_domain(self):
+        """
+        A mask to access the domain region of the allocated data.
+        """
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_domain)
+
+    @cached_property
+    def _mask_outhalo(self):
+        """
+        A mask to access the domain+outhalo region of the allocated data.
+        """
+        return tuple(slice(i.start - j.left, i.stop + j.right or None)
+                     for i, j in zip(self._mask_domain, self._extent_outhalo))
+
+    @cached_property
+    def _extent_outhalo(self):
+        """
+        The number of points in the outer halo region.
+        """
+        if self._distributor is None:
+            return self._extent_halo
+
+        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
+                for d, i in zip(self.dimensions, self._extent_halo.left)]
+        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
+                 for d, i in zip(self.dimensions, self._extent_halo.right)]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @property
     def data(self):
@@ -329,7 +363,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @_allocate_memory
     def data_with_halo(self):
         """
-        The domain+halo data values.
+        The domain+outhalo data values.
 
         Elements are stored in row-major format.
 
@@ -341,7 +375,7 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        return self._data[self._mask_with_halo]._global
+        return self._data[self._mask_outhalo]._global
 
     @property
     @_allocate_memory
@@ -374,8 +408,8 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     @property
     @_allocate_memory
     def data_ro_with_halo(self):
-        """A read-only view of the domain+halo data values."""
-        view = self._data[self._mask_with_halo]._global
+        """A read-only view of the domain+outhalo data values."""
+        view = self._data[self._mask_outhalo]._global
         view.setflags(write=False)
         return view
 
@@ -399,13 +433,6 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
             using MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``.
             On the other hand, when MPI is used, the local ranges depend on the
             domain decomposition, which is carried by ``self.grid``.
-
-        .. note::
-
-            Typically, this property is used to initialize the local data. For
-            example, given a memory-mapped (i.e., global) numpy array ``a`` and
-            a Function ``f(x, y)``, all MPI ranks can initialize their local
-            data straightforwardly as ``f.data[:] = a[f.local_indices]``.
         """
         if self._distributor is None:
             return tuple(slice(0, s) for s in self.shape)
