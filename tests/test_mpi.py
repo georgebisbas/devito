@@ -193,7 +193,7 @@ class TestFunction(object):
         """
         Test halo exchange between two processes organised in a 1x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -224,13 +224,13 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo._local[0] == 0.)
-        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=2)
     def test_halo_exchange_bilateral_asymmetric(self):
@@ -239,7 +239,7 @@ class TestFunction(object):
 
         In this test, the size of left and right halo regions are different.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0 0     0 0 0 0 0 0 0
@@ -272,20 +272,20 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[2:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[:, 0:2] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[2:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0:2] == 0.)
         else:
-            assert np.all(f.data_ro_with_halo._local[2:-1, 0:2] == 1.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-        assert np.all(f.data_ro_with_halo._local[0:2] == 0.)
-        assert np.all(f.data_ro_with_halo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[2:-1, 0:2] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[0:2] == 0.)
+        assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
 
     @pytest.mark.parallel(nprocs=4)
     def test_halo_exchange_quadrilateral(self):
         """
         Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
-        The initial ``data_with_halo`` looks like:
+        The initial ``data_with_inhalo`` looks like:
 
                rank0           rank1
             0 0 0 0 0 0     0 0 0 0 0 0
@@ -332,29 +332,29 @@ class TestFunction(object):
 
         glb_pos_map = grid.distributor.glb_pos_map
         if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 2.)
-            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 3.)
-            assert f.data_ro_with_halo._local[-1, -1] == 4.
+            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 2.)
+            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 3.)
+            assert f._data_ro_with_inhalo._local[-1, -1] == 4.
         elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 1.)
-            assert np.all(f.data_ro_with_halo._local[-1, 1:-1] == 4.)
-            assert f.data_ro_with_halo._local[-1, 0] == 3.
+            assert np.all(f._data_ro_with_inhalo._local[0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 1.)
+            assert np.all(f._data_ro_with_inhalo._local[-1, 1:-1] == 4.)
+            assert f._data_ro_with_inhalo._local[-1, 0] == 3.
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, 0] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, -1] == 4.)
-            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 1.)
-            assert f.data_ro_with_halo._local[0, -1] == 2.
+            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, 0] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, -1] == 4.)
+            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 1.)
+            assert f._data_ro_with_inhalo._local[0, -1] == 2.
         else:
-            assert np.all(f.data_ro_with_halo._local[-1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[:, -1] == 0.)
-            assert np.all(f.data_ro_with_halo._local[1:-1, 0] == 3.)
-            assert np.all(f.data_ro_with_halo._local[0, 1:-1] == 2.)
-            assert f.data_ro_with_halo._local[0, 0] == 1.
+            assert np.all(f._data_ro_with_inhalo._local[-1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[:, -1] == 0.)
+            assert np.all(f._data_ro_with_inhalo._local[1:-1, 0] == 3.)
+            assert np.all(f._data_ro_with_inhalo._local[0, 1:-1] == 2.)
+            assert f._data_ro_with_inhalo._local[0, 0] == 1.
 
     @skipif_yask
     @pytest.mark.parallel(nprocs=4)
