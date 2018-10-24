@@ -289,6 +289,27 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape_with_halo, self._padding))
 
+    _offset_inhalo = AbstractCachedFunction._offset_halo
+    _extent_inhalo = AbstractCachedFunction._extent_halo
+
+    @cached_property
+    def _extent_outhalo(self):
+        """
+        The number of points in the outer halo region.
+        """
+        if self._distributor is None:
+            return self._extent_inhalo
+
+        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
+                for d, i in zip(self.dimensions, self._extent_inhalo.left)]
+        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
+                 for d, i in zip(self.dimensions, self._extent_inhalo.right)]
+
+        Extent = namedtuple('Extent', 'left right')
+        extents = tuple(Extent(i, j) for i, j in zip(left, right))
+
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
+
     @cached_property
     def _mask_domain(self):
         """
@@ -298,30 +319,20 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
                      for i, j in self._offset_domain)
 
     @cached_property
+    def _mask_inhalo(self):
+        """
+        A mask to access the domain+inhalo region of the allocated data.
+        """
+        return tuple(slice(i, -j) if j != 0 else slice(i, None)
+                     for i, j in self._offset_inhalo)
+
+    @cached_property
     def _mask_outhalo(self):
         """
         A mask to access the domain+outhalo region of the allocated data.
         """
-        return tuple(slice(i.start - j.left, i.stop + j.right or None)
+        return tuple(slice(i.start - j.left, i.stop and i.stop + j.right or None)
                      for i, j in zip(self._mask_domain, self._extent_outhalo))
-
-    @cached_property
-    def _extent_outhalo(self):
-        """
-        The number of points in the outer halo region.
-        """
-        if self._distributor is None:
-            return self._extent_halo
-
-        left = [self._distributor.glb_to_loc(d, i, LEFT, strict=False)
-                for d, i in zip(self.dimensions, self._extent_halo.left)]
-        right = [self._distributor.glb_to_loc(d, i, RIGHT, strict=False)
-                 for d, i in zip(self.dimensions, self._extent_halo.right)]
-
-        Extent = namedtuple('Extent', 'left right')
-        extents = tuple(Extent(i, j) for i, j in zip(left, right))
-
-        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @property
     def data(self):
@@ -377,6 +388,32 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
         self._halo_exchange()
         return self._data[self._mask_outhalo]._global
 
+    _data_with_outhalo = data_with_halo
+
+    @property
+    @_allocate_memory
+    def _data_with_inhalo(self):
+        """
+        The domain+inhalo data values.
+
+        Elements are stored in row-major format.
+
+        .. note::
+
+            With this accessor you are claiming that you will modify
+            the values you get back. If you only need to look at the
+            values, use :meth:`data_ro_with_inhalo` instead.
+
+        .. note::
+
+            Typically, this property won't be used in user code to set
+            or read data values. Instead, it may come in handy for
+            testing or debugging
+        """
+        self._is_halo_dirty = True
+        self._halo_exchange()
+        return self._data[self._mask_inhalo]._global
+
     @property
     @_allocate_memory
     def data_allocated(self):
@@ -410,6 +447,16 @@ class TensorFunction(AbstractCachedFunction, ArgProvider):
     def data_ro_with_halo(self):
         """A read-only view of the domain+outhalo data values."""
         view = self._data[self._mask_outhalo]._global
+        view.setflags(write=False)
+        return view
+
+    _data_ro_with_outhalo = data_ro_with_halo
+
+    @property
+    @_allocate_memory
+    def _data_ro_with_inhalo(self):
+        """A read-only view of the domain+inhalo data values."""
+        view = self._data[self._mask_inhalo]._global
         view.setflags(write=False)
         return view
 
@@ -772,8 +819,8 @@ class Function(TensorFunction, Differentiable):
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
             if p is None:
-                lp = self._extent_halo[d].left
-                rp = self._extent_halo[d].right
+                lp = self._extent_inhalo[d].left
+                rp = self._extent_inhalo[d].right
             else:
                 lp = p // 2 + p % 2
                 rp = p // 2
