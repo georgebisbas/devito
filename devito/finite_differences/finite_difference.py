@@ -9,7 +9,7 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative', 'staggered_diff',
            'staggered_cross_diff', 'left', 'right', 'centered', 'transpose']
 
-# Number of digits for FD coefficients to avoid roundup errors and non-deterministic
+# Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
 # code generation
 _PRECISION = 9
 
@@ -64,7 +64,7 @@ def check_input(func):
 
 
 @check_input
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
+def first_derivative(expr, **kwargs):
     """
     First-order derivative of a given expression.
 
@@ -72,17 +72,10 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
     ----------
     expr : expr-like
         Expression for which the first-order derivative is produced.
-    dim : Dimension
-        The Dimension w.r.t. which to differentiate.
-    fd_order : int, optional
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil. Defaults to ``expr.space_order``
-    side : Side, optional
-        Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to centered
-    matvec : Transpose, optional
-        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to direct
+    **kwargs
+        - ``dim``: Dimension w.r.t. which to differentiate.
+        - ``diff``: Finite-difference symbol, defaults to `h`.
+        - ``order``: Discretisation order of the derivative.
 
     Returns
     -------
@@ -91,7 +84,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
 
     Examples
     --------
-    >>> from devito import Function, Grid, first_derivative, transpose
+    >>> from devito import Function, Grid, first_derivative
     >>> grid = Grid(shape=(4, 4))
     >>> x, _ = grid.dimensions
     >>> f = Function(name='f', grid=grid)
@@ -103,18 +96,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
 
     >>> (f*g).dx
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
-
-    The adjoint mode
-
-    >>> g = Function(name='g', grid=grid)
-    >>> first_derivative(f*g, dim=x, matvec=transpose)
-    f(x, y)*g(x, y)/h_x - f(x + h_x, y)*g(x + h_x, y)/h_x
     """
-
-    diff = dim.spacing
-    side = side.adjoint(matvec)
-    order = fd_order or expr.space_order
-
+    dim = kwargs.get('dim')
+    diff = kwargs.get('diff', dim.spacing)
+    order = int(kwargs.get('order', 1))
+    matvec = kwargs.get('matvec', direct)
+    side = kwargs.get('side', centered).adjoint(matvec)
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     if side == right:
@@ -157,6 +144,7 @@ def second_derivative(expr, **kwargs):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         The second-order derivative of ``expr``
 =======
         The ``deriv-order`` order derivative of ``expr``.
@@ -167,6 +155,9 @@ def second_derivative(expr, **kwargs):
 =======
         The finite difference second-order derivative of ``expr``.
 >>>>>>> lots of fi for first derivative
+=======
+        The second-order derivative of ``expr``
+>>>>>>> previosu branch fix still
 
     Examples
     --------
@@ -189,6 +180,9 @@ def second_derivative(expr, **kwargs):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> previosu branch fix still
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
@@ -204,6 +198,7 @@ def second_derivative(expr, **kwargs):
             subs = dict([(d, ind[i].subs({dim: d})) for d in all_dims])
             deriv += coeffs[i] * expr.subs(subs)
     return deriv.evalf(_PRECISION)
+<<<<<<< HEAD
 
 
 @check_input
@@ -363,42 +358,131 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
 =======
 def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 >>>>>>> lots of fi for first derivative
+=======
+
+
+@check_input
+def generic_derivative(expr, deriv_order, dim, fd_order, **kwargs):
+>>>>>>> previosu branch fix still
     """
-    Arbitrary-order cross derivative of a given expression.
+    Arbitrary-order derivative of a given expression.
+
+    Parameters
+    ----------
+    expr : expr-like
+        Expression for which the derivative is produced.
+    deriv_order : int
+        Derivative order, e.g. 2 for a second-order derivative.
+    dim : Dimension
+        The Dimension w.r.t. which to differentiate.
+    fd_order : int
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil.
+
+    Returns
+    -------
+    expr-like
+        The derivative of ``expr`` of order ``deriv-order``.
+    """
+    indices = [(dim + i * dim.spacing) for i in range(-fd_order//2, fd_order//2 + 1)]
+    if fd_order == 1:
+        indices = [dim, dim + dim.spacing]
+    c = finite_diff_weights(deriv_order, indices, dim)[-1][-1]
+    deriv = 0
+    all_dims = tuple(set((dim, ) +
+                     tuple([i for i in expr.indices if i.root == dim])))
+    for i in range(0, len(indices)):
+            subs = dict([(d, indices[i].subs({dim: d})) for d in all_dims])
+            deriv += expr.subs(subs) * c[i]
+
+    return deriv.evalf(_PRECISION)
+
+
+@check_input
+def cross_derivative(expr, **kwargs):
+    """
+    Cross derivative of a given expression.
 
     Parameters
     ----------
     expr : expr-like
         Expression for which the cross derivative is produced.
-    dims : tuple
-        Dimensions w.r.t. which to differentiate.
-    fd_order : int
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
+    **kwargs
+        - ``dims``: 2-tuple Dimensions w.r.t. which to differentiate.
+        - ``diff``: Finite-difference symbol, defaults to `h`.
+        - ``order``: 2-tuple representing the discretisation order of the
+                     derivative in the two Dimensions.
+
+    Returns
+    -------
+    expr-like
+        The cross derivative of ``expr``
 
     Examples
     --------
-    >>> from devito import Function, Grid, second_derivative
+    >>> from devito import Function, Grid, cross_derivative
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
     >>> g = Function(name='g', grid=grid, space_order=2)
-    >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1))
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+    >>> # cross_derivative(f*g, dims=(x, y))
+    TODO
 
     This is also more easily obtainable via:
 
-    >>> (f*g).dxdy
-    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
- 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
- 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
- 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+    >>> # (f*g).dxdy
+    TODO
     """
+
+    dims = kwargs.get('dims')
+    diff = kwargs.get('diff', (dims[0].spacing, dims[1].spacing))
+    order = kwargs.get('order', (1, 1))
+
+    assert(isinstance(dims, tuple) and len(dims) == 2)
+    deriv = 0
+
+    # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
+    ind1r = [(dims[0] + i * diff[0])
+             for i in range(-int(order[0] / 2) + 1 - (order[0] < 4),
+                            int((order[0] + 1) / 2) + 2 - (order[0] < 4))]
+    ind2r = [(dims[1] + i * diff[1])
+             for i in range(-int(order[1] / 2) + 1 - (order[1] < 4),
+                            int((order[1] + 1) / 2) + 2 - (order[1] < 4))]
+    ind1l = [(dims[0] - i * diff[0])
+             for i in range(-int(order[0] / 2) + 1 - (order[0] < 4),
+                            int((order[0] + 1) / 2) + 2 - (order[0] < 4))]
+    ind2l = [(dims[1] - i * diff[1])
+             for i in range(-int(order[1] / 2) + 1 - (order[1] < 4),
+                            int((order[1] + 1) / 2) + 2 - (order[1] < 4))]
+
+    # Finite difference weights from Taylor approximation with this positions
+    c11 = finite_diff_weights(1, ind1r, dims[0])[-1][-1]
+    c21 = finite_diff_weights(1, ind1l, dims[0])[-1][-1]
+    c12 = finite_diff_weights(1, ind2r, dims[1])[-1][-1]
+    c22 = finite_diff_weights(1, ind2l, dims[1])[-1][-1]
+    all_dims1 = tuple(set((dims[0], ) +
+                      tuple([i for i in expr.indices if i.root == dims[0]])))
+    all_dims2 = tuple(set((dims[1], ) +
+                      tuple([i for i in expr.indices if i.root == dims[1]])))
+    # Diagonal elements
+    for i in range(0, len(ind1r)):
+        for j in range(0, len(ind2r)):
+            subs1 = dict([(d1, ind1r[i].subs({dims[0]: d1})) +
+                          (d2, ind2r[i].subs({dims[1]: d2}))
+                          for (d1, d2) in zip(all_dims1, all_dims2)])
+            subs2 = dict([(d1, ind1l[i].subs({dims[0]: d1})) +
+                          (d2, ind2l[i].subs({dims[1]: d2}))
+                          for (d1, d2) in zip(all_dims1, all_dims2)])
+            var1 = expr.subs(subs1)
+            var2 = expr.subs(subs2)
+            deriv += .5 * (c11[i] * c12[j] * var1 + c21[-(j+1)] * c22[-(i+1)] * var2)
+    return -deriv.evalf(_PRECISION)
+
+
+@check_input
+def second_cross_derivative(expr, dims, order):
+    """
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -432,17 +516,62 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 @check_input
 def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     """
+=======
+    Second-order cross derivative of a given expression.
+
+    Parameters
+    ----------
+    expr : expr-like
+        Expression for which the second-order cross derivative is produced.
+    dims : tuple
+        2-tuple Dimensions w.r.t. which to differentiate.
+    order : Discretisation order of the derivative.
+    """
+    first = first_derivative(expr, dim=dims[0], width=order)
+    return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
+
+
+@check_input
+def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
+    """
+    Arbitrary-order cross derivative of a given expression.
+
+    Parameters
+    ----------
+    expr : expr-like
+        Expression for which the cross derivative is produced.
+    dims : tuple
+        Dimensions w.r.t. which to differentiate.
+    fd_order : int
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil.
+    deriv_order : int
+        Derivative order, e.g. 2 for a second-order derivative.
+    """
+    first = generic_derivative(expr, deriv_order=deriv_order[0],
+                               fd_order=fd_order[0], dim=dims[0])
+    return generic_derivative(first, deriv_order=deriv_order[1],
+                              fd_order=fd_order[1], dim=dims[1])
+
+
+@check_input
+def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
+    """
+>>>>>>> previosu branch fix still
     Arbitrary-order staggered derivative of a given expression.
 
     Parameters
     ----------
     expr : expr-like
         Expression for which the derivative is produced.
+    deriv_order : int
+        Derivative order, e.g. 2 for a second-order derivative.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
     fd_order : int
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     stagger : Side, optional
@@ -499,6 +628,12 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
 >>>>>>> fabio's more comments
     """
 
+=======
+    stagger : Side, optional
+        Shift of the finite-difference approximation.
+    """
+
+>>>>>>> previosu branch fix still
     if stagger == left:
         off = -.5
     elif stagger == right:
@@ -611,12 +746,12 @@ def generate_fd_shortcuts(function):
         else:
             # Left
             dim_order = time_fd_order if d.is_Time else space_fd_order
-            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=left)
+            deriv = partial(first_derivative, order=dim_order, dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=right)
+            deriv = partial(first_derivative, order=dim_order, dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
