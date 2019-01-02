@@ -1796,8 +1796,10 @@ class SparseFunction(AbstractSparseFunction, Differentiable):
 
     is_SparseFunction = True
 
+    """ Sparse function are not differentiable in space dimension"""
+
     _radius = 1
-    """The radius of the stencil operators provided by the SparseFunction."""
+    """ The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ('coordinates',)
 
@@ -2253,6 +2255,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
 
     is_SparseTimeFunction = True
+
+    space_order = 0
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
