@@ -1231,7 +1231,6 @@ class TimeFunction(Function):
     """
 
     is_TimeFunction = True
-    is_TimeDifferentiable = True
 
     _time_position = 0
     """Position of time index among the function indices."""
@@ -1386,7 +1385,7 @@ class AbstractSparseFunction(TensorFunction):
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
     space_order = 0
-    """ Sparse functions are not differentiable in space"""
+    """ Sparse functions are not differentiable in space dimensions"""
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1655,7 +1654,6 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     """
     An abstract class to define behaviours common to all sparse time-varying functions.
     """
-    is_TimeDifferentiable = True
 
     _time_position = 0
     """Position of time index among the function indices."""
@@ -1667,8 +1665,11 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
 
+<<<<<<< HEAD
             super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
 
+=======
+>>>>>>> reoved IsDiff
     @classmethod
     def __indices_setup__(cls, **kwargs):
         dimensions = kwargs.get('dimensions')
