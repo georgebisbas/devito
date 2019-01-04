@@ -1662,6 +1662,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         if not self._cached():
             self._time_dim = self.indices[self._time_position]
             self._time_order = kwargs.get('time_order', 1)
+            super(AbstractSparseTimeFunction, self).__init__(*args, **kwargs)
             if not isinstance(self.time_order, int):
                 raise ValueError("`time_order` must be int")
 
