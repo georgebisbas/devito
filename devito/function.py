@@ -1231,6 +1231,7 @@ class TimeFunction(Function):
     """
 
     is_TimeFunction = True
+    is_TimeDifferentiable = True
 
     _time_position = 0
     """Position of time index among the function indices."""
@@ -1383,6 +1384,9 @@ class AbstractSparseFunction(TensorFunction):
 
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
+
+    space_order = 0
+    """ Sparse functions are not differentiable in space"""
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -1651,6 +1655,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     """
     An abstract class to define behaviours common to all sparse time-varying functions.
     """
+    is_TimeDifferentiable = True
 
     _time_position = 0
     """Position of time index among the function indices."""
