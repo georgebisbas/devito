@@ -161,6 +161,7 @@ def second_derivative(expr, **kwargs):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
+<<<<<<< HEAD
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
@@ -310,6 +311,9 @@ def second_cross_derivative(expr, dims, order):
     """
     first = first_derivative(expr, dim=dims[0], width=order)
     return first_derivative(first, dim=dims[1], order=order).evalf(_PRECISION)
+=======
+    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
+>>>>>>> fix args order in second derivative
 
 
 @check_input
