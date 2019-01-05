@@ -9,7 +9,7 @@ __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'generic_derivative', 'second_cross_derivative', 'staggered_diff',
            'staggered_cross_diff', 'left', 'right', 'centered', 'transpose']
 
-# Number of digits for FD coefficients to avoid roundup errors and non-deeterministic
+# Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
 _PRECISION = 9
 
@@ -547,7 +547,29 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
         the resulting stencil.
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
+
+    Examples
+    --------
+    >>> from devito import Function, Grid, second_derivative
+    >>> grid = Grid(shape=(4, 4))
+    >>> x, y = grid.dimensions
+    >>> f = Function(name='f', grid=grid, space_order=2)
+    >>> g = Function(name='g', grid=grid, space_order=2)
+    >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1))
+    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
+ 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
+ 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
+ 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
+
+    This is also more easily obtainable via:
+
+    >>> (f*g).dxdy
+    -0.5*(-0.5*f(x - h_x, y - h_y)*g(x - h_x, y - h_y)/h_x +\
+ 0.5*f(x + h_x, y - h_y)*g(x + h_x, y - h_y)/h_x)/h_y +\
+ 0.5*(-0.5*f(x - h_x, y + h_y)*g(x - h_x, y + h_y)/h_x +\
+ 0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
+<<<<<<< HEAD
     first = generic_derivative(expr, deriv_order=deriv_order[0],
                                fd_order=fd_order[0], dim=dims[0])
     return generic_derivative(first, deriv_order=deriv_order[1],
@@ -556,6 +578,17 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
 
 @check_input
 def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
+=======
+    first = expr
+    for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
+        first = generic_derivative(first, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+
+    return first
+
+
+@check_input
+def generic_derivative(expr, dim, fd_order, deriv_order, stagger=None):
+>>>>>>> small fixes + docstring
     """
 >>>>>>> previosu branch fix still
     Arbitrary-order staggered derivative of a given expression.
