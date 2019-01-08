@@ -142,10 +142,14 @@ def second_derivative(expr, **kwargs):
     -------
     expr-like
 <<<<<<< HEAD
+<<<<<<< HEAD
         The second-order derivative of ``expr``
 =======
         The ``deriv-order`` order derivative of ``expr``.
 >>>>>>> fabio's comments
+=======
+        The ``deriv-order`` orderderivative of ``expr``.
+>>>>>>> fabio's more comments
 
     Examples
     --------
@@ -165,6 +169,7 @@ def second_derivative(expr, **kwargs):
  f(x + h_x, y)*g(x + h_x, y)/h_x**2
     """
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     order = kwargs.get('order', 2)
@@ -330,6 +335,13 @@ def generic_cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
 @check_input
 def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 >>>>>>> more FD examples in dicstring
+=======
+    return generic_derivative(expr, dim, fd_order, 2, stagger=None)
+
+
+@check_input
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
+>>>>>>> fabio's more comments
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -344,12 +356,10 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
         the resulting stencil.
     deriv_order : int
         Derivative order, e.g. 2 for a second-order derivative.
-    stagger : tuple
-        Staggering of the input expression in each dimension of the cross derivative.
 
     Examples
     --------
-    >>> from devito import Function, Grid, cross_derivative
+    >>> from devito import Function, Grid, second_derivative
     >>> grid = Grid(shape=(4, 4))
     >>> x, y = grid.dimensions
     >>> f = Function(name='f', grid=grid, space_order=2)
@@ -369,17 +379,25 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
  0.5*f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x)/h_y
     """
 <<<<<<< HEAD
+<<<<<<< HEAD
     first = generic_derivative(expr, deriv_order=deriv_order[0],
                                fd_order=fd_order[0], dim=dims[0])
     return generic_derivative(first, deriv_order=deriv_order[1],
                               fd_order=fd_order[1], dim=dims[1])
 =======
     stagger = stagger or [None]*len(dims)
+=======
+    first = expr
+>>>>>>> fabio's more comments
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
-        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+        first = generic_derivative(first, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
 
+<<<<<<< HEAD
     return expr
 >>>>>>> more FD examples in dicstring
+=======
+    return first
+>>>>>>> fabio's more comments
 
 
 @check_input
@@ -391,24 +409,30 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     ----------
     expr : expr-like
         Expression for which the derivative is produced.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
     fd_order : int
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
 <<<<<<< HEAD
+<<<<<<< HEAD
     stagger : Side, optional
         Shift of the finite-difference approximation.
 =======
     stagger : Side of the staggered finite difference (left, right or centered)
         finite-difference staggering of the input expr
+=======
+    deriv_order : int
+        Derivative order, e.g. 2 for a second-order derivative.
+    stagger : Side, optional
+        Shift of the finite-difference approximation.
+>>>>>>> fabio's more comments
 
     Returns
     -------
     expr-like
         The derivative of ``expr`` of order ``deriv-order``.
+<<<<<<< HEAD
 
     Examples
     --------
@@ -442,6 +466,8 @@ def staggered_diff(expr, deriv_order, dim, fd_order, stagger=centered):
     >>> g.dx
     g(x, y)/h_x - g(x - h_x, y)/h_x
 >>>>>>> fabio's comments
+=======
+>>>>>>> fabio's more comments
     """
 
     if stagger == left:
