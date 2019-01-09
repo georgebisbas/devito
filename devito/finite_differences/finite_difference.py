@@ -64,7 +64,7 @@ def check_input(func):
 
 
 @check_input
-def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
+def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct):
     """
     First-order derivative of a given expression.
 
@@ -74,15 +74,16 @@ def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
         Expression for which the first-order derivative is produced.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
-    fd_order : int
+    fd_order : int, optional
         Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    side : Side
+        the resulting stencil. Defaults to ``expr.space_order``
+    side : Side, optional
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1)
-    matvec : Transpose
-        Forward (side=direct) or transpose (side=transpose) mode of the finite difference
-    
+        or right (at x +1). Defaults to centered
+    matvec : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to direct
+
     Returns
     -------
     expr-like
@@ -90,7 +91,7 @@ def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
 
     Examples
     --------
-    >>> from devito import Function, Grid, first_derivative, adjoint
+    >>> from devito import Function, Grid, first_derivative, transpose
     >>> grid = Grid(shape=(4, 4))
     >>> x, _ = grid.dimensions
     >>> f = Function(name='f', grid=grid)
@@ -102,7 +103,7 @@ def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
 
     >>> (f*g).dx
     -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
-    
+
     The adjoint mode
 
     >>> g = Function(name='g', grid=grid)
@@ -112,7 +113,7 @@ def first_derivative(expr, dim, fd_order, side=centered, matvec=direct):
 
     diff = dim.spacing
     side = side.adjoint(matvec)
-    order = fd_order
+    order = fd_order or expr.space_order
 
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
@@ -155,6 +156,7 @@ def second_derivative(expr, **kwargs):
     expr-like
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         The second-order derivative of ``expr``
 =======
         The ``deriv-order`` order derivative of ``expr``.
@@ -162,6 +164,9 @@ def second_derivative(expr, **kwargs):
 =======
         The ``deriv-order`` orderderivative of ``expr``.
 >>>>>>> fabio's more comments
+=======
+        The finite difference second-order derivative of ``expr``.
+>>>>>>> lots of fi for first derivative
 
     Examples
     --------
@@ -352,8 +357,12 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
 
 
 @check_input
+<<<<<<< HEAD
 def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
 >>>>>>> fabio's more comments
+=======
+def cross_derivative(expr, dims, fd_order, deriv_order, stagger=None):
+>>>>>>> lots of fi for first derivative
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -392,6 +401,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
     """
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     first = generic_derivative(expr, deriv_order=deriv_order[0],
                                fd_order=fd_order[0], dim=dims[0])
     return generic_derivative(first, deriv_order=deriv_order[1],
@@ -401,15 +411,22 @@ def cross_derivative(expr, dims, fd_order, deriv_order, stagger=(None, None)):
 =======
     first = expr
 >>>>>>> fabio's more comments
+=======
+    stagger = stagger or [None]*len(dims)
+>>>>>>> lots of fi for first derivative
     for d, fd, dim, s in zip(deriv_order, fd_order, dims, stagger):
-        first = generic_derivative(first, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, stagger=s)
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     return expr
 >>>>>>> more FD examples in dicstring
 =======
     return first
 >>>>>>> fabio's more comments
+=======
+    return expr
+>>>>>>> lots of fi for first derivative
 
 
 @check_input
@@ -594,12 +611,12 @@ def generate_fd_shortcuts(function):
         else:
             # Left
             dim_order = time_fd_order if d.is_Time else space_fd_order
-            deriv = partial(first_derivative, order=dim_order, dim=d, side=left)
+            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=left)
             name_fd = 'd%sl' % name
             desciption = 'left first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
             # Right
-            deriv = partial(first_derivative, order=dim_order, dim=d, side=right)
+            deriv = partial(first_derivative, fd_order=dim_order, dim=d, side=right)
             name_fd = 'd%sr' % name
             desciption = 'right first order derivative w.r.t dimension %s' % d
             derivatives[name_fd] = (deriv, desciption)
