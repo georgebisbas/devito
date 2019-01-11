@@ -331,9 +331,13 @@ class GaborSource(WaveletSource):
         return np.exp(-2*s**2) * np.cos(2 * np.pi * s)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 067481b4... Add files via upload
+=======
+    
+>>>>>>> 6442f47a... fix whitespaces
 class DGaussSource(WaveletSource):
     """
     Symbolic object that encapsulate a set of sources with a
@@ -393,8 +397,6 @@ class DGaussSource(WaveletSource):
     :param time: Discretized values of time in ms
     """
 
-
-
     def wavelet(self, f0, t, a ):
         """
         Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0 at time t.
@@ -404,6 +406,9 @@ class DGaussSource(WaveletSource):
         :param a: Maximum amplitude, real constant defined by user
 
         """
+<<<<<<< HEAD
 
 >>>>>>> 067481b4... Add files via upload
+=======
+>>>>>>> 6442f47a... fix whitespaces
         return -2.*a*(t - 1/f0) * np.exp(-a * (t - 1/f0)**2)
