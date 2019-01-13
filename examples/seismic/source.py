@@ -11,10 +11,14 @@ from devito.types import Dimension, SparseTimeFunction
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 <<<<<<< HEAD
+<<<<<<< HEAD
            'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
 =======
            'RickerSource', 'GaborSource', 'TimeAxis', 'DGaussSource']
 >>>>>>> 067481b4... Add files via upload
+=======
+           'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
+>>>>>>> b93c7b38... Fixing after fablup review
 
 
 class TimeAxis(object):
@@ -403,20 +407,33 @@ class DGaussSource(WaveletSource):
 >>>>>>> a2d28dae... Fix whitespaces, long lines
 
     returns the 1st order derivative of the Gaussian wavelet
+    
+    Parameters
+    ----------
 
-    :param name: Name for the resulting symbol
-    :param grid: :class:`Grid` object defining the computational domain.
-    :param f0: Peak frequency for wavelet in kHz
-    :param time: Discretized values of time in ms
+    name: str
+        Name for the resulting symbol
+    grid: :class:`Grid`
+        object defining the computational domain.
+    f0: float
+        Peak frequency for wavelet in kHz
+    time: TimeAxis
+        Discretized values of time in ms
     """
 
     def wavelet(self, f0, t, a):
         """
         Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0
         at time t.
-        :param f0: Peak frequency in kHz
-        :param t: Discretized values of time in ms
-        :param a: Maximum amplitude, real constant defined by user
+        
+        Parameters
+        ----------
+        f0: float
+            Peak frequency in kHz
+        t: TimeAxis
+            Discretized values of time in ms
+        a: float
+            Maximum amplitude, real constant defined by user
         """
 <<<<<<< HEAD
 
