@@ -22,6 +22,7 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 
 
 class TimeAxis(object):
+<<<<<<< HEAD
     """
     Data object to store the TimeAxis. Exactly three of the four key arguments
     must be prescribed. Because of remainder values it is not possible to create
@@ -47,6 +48,32 @@ class TimeAxis(object):
         Stop value is reset to correct for remainder.
     stop : float, optional
         End time.
+=======
+    """ Data object to store the time axis. Exactly three of the four key arguments
+        must be prescribed. Because of remainder values it is not possible to create
+        a time axis that exactly adhears to the inputs therefore start, stop, step
+        and num values should be taken from the TimeAxis object rather than relying
+        upon the input values.
+
+        The four possible cases are:
+        start is None: start = step*(1 - num) + stop
+        step is None: step = (stop - start)/(num - 1)
+        num is None: num = ceil((stop - start + step)/step);
+                     because of remainder stop = step*(num - 1) + start
+        stop is None: stop = step*(num - 1) + start
+
+    Parameters
+    ----------
+    start:
+        (Optional) Start of time axis.
+    step:
+        (Optional) Time interval.
+    num:
+        (Optional) Number of values (Note: this is the number of intervals + 1).
+                 stop value is reset to correct for remainder.
+    stop:
+        (Optional) End time.
+>>>>>>> 7f44686c... Fixing and more numpydocization
     """
     def __init__(self, start=None, step=None, num=None, stop=None):
         try:
@@ -89,6 +116,7 @@ class PointSource(SparseTimeFunction):
 
     Parameters
     ----------
+<<<<<<< HEAD
     name : str
         Name of the symbol representing this source.
     grid : Grid
@@ -109,6 +137,29 @@ class PointSource(SparseTimeFunction):
         Data type of the buffered data.
     dimension : Dimension, optional
         Represents the number of points in this source.
+=======
+    name: str
+        Name of the symbol representing this source.
+    grid: `Grid`
+        The computational domain.
+    time_range: `TimeAxis`
+        TimeAxis(start, step, num) object.
+    npoint:
+        (Optional) number of sparse points represented by this source.
+    data:
+        (Optional) data values to initialise point data.
+    coordinates:
+        (Optional) point coordinates for this source.
+    space_order:
+        (Optional) space discretization order.
+    time_order:
+        (Optional) time discretization order (defaults to 2).
+    dtype:
+        (Optional) data type of the buffered data.
+    dimension:
+        (Optional) class:`Dimension` object for 
+        representing the number of points in this source.
+>>>>>>> 7f44686c... Fixing and more numpydocization
     """
 
     def __new__(cls, **kwargs):
@@ -195,6 +246,7 @@ class WaveletSource(PointSource):
     """
     Abstract base class for symbolic objects that encapsulate a set of
     sources with a pre-defined source signal wavelet.
+<<<<<<< HEAD
 
     Parameters
     ----------
@@ -205,6 +257,18 @@ class WaveletSource(PointSource):
     f0 : float
         Peak frequency for Ricker wavelet in kHz.
     time_values : TimeAxis
+=======
+    
+    Parameters
+    ----------
+    name: str
+        Name for the resulting symbol.
+    grid:`Grid`
+        The computational domain.
+    f0: float
+        Peak frequency for Ricker wavelet in kHz.
+    time_values:
+>>>>>>> 7f44686c... Fixing and more numpydocization
         Discretized values of time in ms.
     """
 
@@ -226,9 +290,15 @@ class WaveletSource(PointSource):
 
         Parameters
         ----------
+<<<<<<< HEAD
         f0 : float
             Peak frequency in kHz.
         t : TimeAxis
+=======
+        f0: float
+            Peak frequency in kHz.
+        t: 
+>>>>>>> 7f44686c... Fixing and more numpydocization
             Discretized values of time in ms.
         """
         raise NotImplementedError('Wavelet not defined')
@@ -239,11 +309,19 @@ class WaveletSource(PointSource):
 
         Parameters
         ----------
+<<<<<<< HEAD
         idx : int
             Index of the source point for which to plot wavelet.
         wavelet :
             Prescribed wavelet instead of one from this symbol.
         time : TimeAxis
+=======
+        idx:
+            Index of the source point for which to plot wavelet.
+        wavelet:
+            Prescribed wavelet instead of one from this symbol.
+        time: TimeAxis
+>>>>>>> 7f44686c... Fixing and more numpydocization
             Prescribed time instead of time from this symbol.
         """
         wavelet = wavelet or self.data[:, idx]
@@ -264,6 +342,7 @@ class RickerSource(WaveletSource):
     pre-defined Ricker wavelet:
 
     http://subsurfwiki.org/wiki/Ricker_wavelet
+<<<<<<< HEAD
 
     Parameters
     ----------
@@ -279,17 +358,39 @@ class RickerSource(WaveletSource):
     Returns
     ----------
     A Ricker wavelet.
+=======
+    
+    Parameters
+    ----------
+    name: str
+        Name for the resulting symbol.
+    grid: `Grid` 
+        The computational domain.
+    f0: float
+        Peak frequency for Ricker wavelet in kHz.
+    time: TimeAxis
+        Discretized values of time in ms.
+>>>>>>> 7f44686c... Fixing and more numpydocization
     """
 
     def wavelet(self, f0, t):
         """
         Defines a Ricker wavelet with a peak frequency f0 at time t.
+<<<<<<< HEAD
 
         Parameters
         ----------
         f0 : float
             Peak frequency in kHz.
         t : TimeAxis
+=======
+        
+        Parameters
+        ----------
+        f0: float
+            Peak frequency in kHz.
+        t: TimeAxis
+>>>>>>> 7f44686c... Fixing and more numpydocization
             Discretized values of time in ms.
         """
         r = (np.pi * f0 * (t - 1./f0))
@@ -302,6 +403,7 @@ class GaborSource(WaveletSource):
     pre-defined Gabor wavelet:
 
     https://en.wikipedia.org/wiki/Gabor_wavelet
+<<<<<<< HEAD
 
     Parameters
     ----------
@@ -317,6 +419,19 @@ class GaborSource(WaveletSource):
     Returns
     -------
     A Gabor wavelet.
+=======
+    
+    Parameters
+    ----------
+    name: str
+        Name for the resulting symbol.
+    grid: `Grid` object 
+        defining the computational domain.
+    f0: float
+        Peak frequency for Ricker wavelet in kHz.
+    time: TimeAxis
+        Discretized values of time in ms.
+>>>>>>> 7f44686c... Fixing and more numpydocization
     """
 
     def wavelet(self, f0, t):
@@ -324,10 +439,15 @@ class GaborSource(WaveletSource):
         Defines a Gabor wavelet with a peak frequency f0 at time t.
         Parameters
         ----------
+<<<<<<< HEAD
         f0 : float
             Peak frequency in kHz.
         t : TimeAxis
             Discretized values of time in ms.
+=======
+        f0: Peak frequency in kHz.
+        t: Discretized values of time in ms.
+>>>>>>> 7f44686c... Fixing and more numpydocization
         """
         agauss = 0.5 * f0
         tcut = 1.5 / agauss
@@ -351,6 +471,7 @@ class DGaussSource(WaveletSource):
     Symbolic object that encapsulate a set of sources with a
     pre-defined 1st derivative wavelet of a Gaussian Source:
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     Notes
@@ -399,6 +520,11 @@ class DGaussSource(WaveletSource):
     This scaling also makes the Gaussian wavelet resemble the Mexican hat, or Ricker, wavelet. The validity of the wavelet is not affected by the -1 scaling factor.
 =======
     Note: For visualizing the second or third order derivative of Gaussian wavelets,
+=======
+    Notes
+    ---------
+    For visualizing the second or third order derivative of Gaussian wavelets,
+>>>>>>> 7f44686c... Fixing and more numpydocization
     the convention is to use the negative of the normalized derivative. In the case
     of the second derivative, scaling by -1 produces a wavelet with its main
     lobe in the positive y direction. This scaling also makes the Gaussian wavelet
@@ -406,34 +532,34 @@ class DGaussSource(WaveletSource):
     The validity of the wavelet is not affected by the -1 scaling factor.
 >>>>>>> a2d28dae... Fix whitespaces, long lines
 
-    returns the 1st order derivative of the Gaussian wavelet
-    
     Parameters
     ----------
-
     name: str
-        Name for the resulting symbol
-    grid: :class:`Grid`
-        object defining the computational domain.
+        Name for the resulting symbol.
+    grid: `Grid`
+        The computational domain.
     f0: float
-        Peak frequency for wavelet in kHz
+        Peak frequency for wavelet in kHz.
     time: TimeAxis
-        Discretized values of time in ms
+        Discretized values of time in ms.
+    
+    Returns
+    ----------
+    returns the 1st order derivative of the Gaussian wavelet
     """
-
+    
     def wavelet(self, f0, t, a):
         """
-        Defines the 1st derivative of a Gaussian wavelet with a peak frequency f0
-        at time t.
+        Defines the 1st derivative of a Gaussian wavelet.
         
         Parameters
         ----------
         f0: float
-            Peak frequency in kHz
+            Peak frequency in kHz.
         t: TimeAxis
-            Discretized values of time in ms
+            Discretized values of time in ms.
         a: float
-            Maximum amplitude, real constant defined by user
+            Maximum amplitude.
         """
 <<<<<<< HEAD
 
