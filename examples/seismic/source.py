@@ -440,6 +440,7 @@ class GaborSource(WaveletSource):
         Parameters
         ----------
 <<<<<<< HEAD
+<<<<<<< HEAD
         f0 : float
             Peak frequency in kHz.
         t : TimeAxis
@@ -448,6 +449,12 @@ class GaborSource(WaveletSource):
         f0: Peak frequency in kHz.
         t: Discretized values of time in ms.
 >>>>>>> 7f44686c... Fixing and more numpydocization
+=======
+        f0: float
+            Peak frequency in kHz.
+        t:
+            Discretized values of time in ms.
+>>>>>>> a05058a9... Fixing and more numpydocization II
         """
         agauss = 0.5 * f0
         tcut = 1.5 / agauss
