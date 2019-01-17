@@ -1,4 +1,4 @@
-, optional, optional, optionalfrom scipy import interpolate
+from scipy import interpolate
 from cached_property import cached_property
 import numpy as np
 try:
@@ -210,15 +210,15 @@ class PointSource(SparseTimeFunction):
     npoint : int, optional
 >>>>>>> 3f57a9ec... Fix (Optional) and backtips
         Number of sparse points represented by this source.
-    data :, optional
+    data : ndarray, optional
         Data values to initialise point data.
-    coordinates :, optional
+    coordinates : ndarray, optional
         Point coordinates for this source.
-    space_order :, optional
+    space_order : int or 3-tuple of ints, optional
         Space discretization order.
-    time_order :, optional
+    time_order : int, optional
         Time discretization order (defaults to 2).
-    dtype :, optional
+    dtype : data-type, optional
         Data type of the buffered data.
     dimension : Dimension, optional
         Represents the number of points in this source.
@@ -321,6 +321,7 @@ class WaveletSource(PointSource):
     f0 : float
         Peak frequency for Ricker wavelet in kHz.
     time_values : TimeAxis
+<<<<<<< HEAD
 =======
     
 =======
@@ -340,6 +341,8 @@ class WaveletSource(PointSource):
 =======
     time_values :
 >>>>>>> 3f57a9ec... Fix (Optional) and backtips
+=======
+>>>>>>> 8aa5ca13... More numpy-fixes and error fixing
         Discretized values of time in ms.
     """
 
@@ -378,8 +381,12 @@ class WaveletSource(PointSource):
 =======
         f0 : float
             Peak frequency in kHz.
+<<<<<<< HEAD
         t :
 >>>>>>> 3f57a9ec... Fix (Optional) and backtips
+=======
+        t : TimeAxis
+>>>>>>> 8aa5ca13... More numpy-fixes and error fixing
             Discretized values of time in ms.
         """
         raise NotImplementedError('Wavelet not defined')
@@ -392,6 +399,7 @@ class WaveletSource(PointSource):
         ----------
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         idx : int
             Index of the source point for which to plot wavelet.
         wavelet :
@@ -402,6 +410,9 @@ class WaveletSource(PointSource):
 =======
         idx :
 >>>>>>> 3f57a9ec... Fix (Optional) and backtips
+=======
+        idx : int
+>>>>>>> 8aa5ca13... More numpy-fixes and error fixing
             Index of the source point for which to plot wavelet.
         wavelet :
             Prescribed wavelet instead of one from this symbol.
@@ -551,6 +562,7 @@ class GaborSource(WaveletSource):
         f0 : float
             Peak frequency in kHz.
         t : TimeAxis
+<<<<<<< HEAD
             Discretized values of time in ms.
 =======
         f0: Peak frequency in kHz.
@@ -563,6 +575,8 @@ class GaborSource(WaveletSource):
 >>>>>>> 3f57a9ec... Fix (Optional) and backtips
             Peak frequency in kHz.
         t :
+=======
+>>>>>>> 8aa5ca13... More numpy-fixes and error fixing
             Discretized values of time in ms.
 >>>>>>> a05058a9... Fixing and more numpydocization II
         """
