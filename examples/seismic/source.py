@@ -6,7 +6,8 @@ try:
 except:
     plt = None
 
-from devito.types import Dimension, SparseTimeFunction
+from devito import Dimension
+from devito.function import SparseTimeFunction
 
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
@@ -25,6 +26,7 @@ class TimeAxis(object):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     """
     Data object to store the TimeAxis. Exactly three of the four key arguments
     must be prescribed. Because of remainder values it is not possible to create
@@ -38,6 +40,12 @@ class TimeAxis(object):
     must be prescribed. Because of remainder values it is not possible to create
     a time axis that exactly adhears to the inputs therefore start, stop, step
 >>>>>>> 34b31207... Fixing and numpydocization III
+=======
+    """
+    Data object to store the TimeAxis. Exactly three of the four key arguments
+    must be prescribed. Because of remainder values it is not possible to create
+    a time axis that exactly adhears to the inputs therefore start, stop, step
+>>>>>>> 2f2e4f7c... TimeAxis
     and num values should be taken from the TimeAxis object rather than relying
     upon the input values.
 
@@ -164,6 +172,7 @@ class PointSource(SparseTimeFunction):
         Data values to initialise point data.
     coordinates : ndarray, optional
         Point coordinates for this source.
+<<<<<<< HEAD
     space_order : int, optional
         Space discretization order.
     time_order : int, optional
@@ -214,6 +223,8 @@ class PointSource(SparseTimeFunction):
         Data values to initialise point data.
     coordinates : ndarray, optional
         Point coordinates for this source.
+=======
+>>>>>>> 2f2e4f7c... TimeAxis
     space_order : int or 3-tuple of ints, optional
         Space discretization order.
     time_order : int, optional
@@ -538,6 +549,7 @@ class GaborSource(WaveletSource):
         Discretized values of time in ms.
 
     Returns
+<<<<<<< HEAD
     -------
     A Gabor wavelet.
 =======
@@ -560,6 +572,8 @@ class GaborSource(WaveletSource):
 =======
 
     Returns
+=======
+>>>>>>> 2f2e4f7c... TimeAxis
     ----------
     A Gabor wavelet.
 >>>>>>> 891f6576... Remove implicit returns and add missing
@@ -619,6 +633,7 @@ class DGaussSource(WaveletSource):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     Notes
     -----
     For visualizing the second or third order derivative
@@ -666,6 +681,8 @@ class DGaussSource(WaveletSource):
 =======
     Note: For visualizing the second or third order derivative of Gaussian wavelets,
 =======
+=======
+>>>>>>> 2f2e4f7c... TimeAxis
     Notes
     ---------
     For visualizing the second or third order derivative of Gaussian wavelets,
@@ -675,7 +692,10 @@ class DGaussSource(WaveletSource):
     lobe in the positive y direction. This scaling also makes the Gaussian wavelet
     resemble the Mexican hat, or Ricker, wavelet.
     The validity of the wavelet is not affected by the -1 scaling factor.
+<<<<<<< HEAD
 >>>>>>> a2d28dae... Fix whitespaces, long lines
+=======
+>>>>>>> 2f2e4f7c... TimeAxis
 
     Parameters
     ----------
