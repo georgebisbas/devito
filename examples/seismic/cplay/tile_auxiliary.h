@@ -18,6 +18,34 @@ float malloc2d(float *** C, int nrows, int ncols) {
     return 0;
 }
 
+float malloc3d(float *** C, int timestamps, int nrows, int ncols) {
+    int i,t_i;
+    C = (float ***) malloc (sizeof(float **) * timestamps);
+
+    for (t_i = 0; t_i < timestamps; t_i++) {
+      C[t_i] = (float **) malloc( sizeof(float *) * nrows);
+
+      if (*C == NULL) {
+          printf("ERROR: out of memory\n");
+          return 1;
+        }
+
+        for (i=0; i<nrows; i++) {
+          C[t_i][i] = (float *)malloc( sizeof(float) * ncols);
+          if (C[t_i][i] == NULL) {
+              printf("ERROR: out of memory\n");
+              return 1;
+        }
+    }
+  }     printf("Allocated 3D!\n");
+
+  printf("\n%1.1f ", C[0][5][9]);
+  printf("\n%1.1f ", C[0][10][7]);
+  printf("\n%1.1f ", C[0][20][5]);
+
+  return 0;
+
+}
 
 
 void mem_allocate(int nrows, int ncols, float **C)
@@ -35,33 +63,68 @@ void mem_allocate(int nrows, int ncols, float **C)
     //return C;
 }
 
-void initialize(int nrows, int ncols, float **A_init)
+void initialize2(int nrows, int ncols, float **A_init)
 {
     // Initialize the matrix
-    int t = 0;
+    int ti = 0;
     int xi = 0;
     int yi = 0;
     for (xi = 0; xi < nrows; xi+=1) {
         for (yi = 0; yi < ncols; yi+=1) {
             A_init[xi][yi] = 10;
         }
+  }
+}
+
+void initialize3(int nrows, int ncols, int timestamps, float ***A_init)
+{
+    // Initialize the matrix
+    int ti = 0;
+    int xi = 0;
+    int yi = 0;
+    for (xi = 0; xi < nrows; xi+=1) {
+        for (yi = 0; yi < ncols; yi+=1) {
+          for (ti = 0; ti < timestamps; ti+=1) {
+            A_init[xi][yi][ti] = 10;
+        }
     }
+  }
+}
+
+void printMatrix3d(int nrows, int ncols, int timestamps, float ***matrix) {
+
+  for (int i = 0; i < nrows; i++) {
+    for (int j = 0; j < ncols; j++) {
+      for (int k = 0; k < timestamps; k++) {
+        printf("matrix[%d][%d][%d]: %lf\n", i, j, k, matrix[i][j][k]);
+      }
+    }
+  }
+
+  //return matrix;
+
 }
 
 
-void print_array(int nrows, int ncols, float **B)
+
+
+
+
+
+void print_array_2d(int nrows, int ncols, int timestamps, float ***B)
 {
-    int xi=0;
+    int xi = 0;
     int yi = 0;
+    int ti = 0;
     printf("\n");
-    for (xi = 0; xi < nrows; xi++) {
+
+    for (xi = 0; xi < nrows; xi+=1) {
         printf("\n");
-        for (yi = 0; yi < ncols; yi++) {
-            printf("%1.1f ", B[xi][yi]);
+        for (yi = 0; yi < ncols; yi+=1) {
+            printf("%1.1f ", &B[xi][yi][0]);
         }
     }
 }
-
 
 
 
@@ -147,13 +210,16 @@ void jacobi_cilk(int timesteps, int nrows, int ncols, float **A, float **B)
 }
 
 
-jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, float **A, float **B, float **src_coords, float **rec_coords)
+float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timestamps, int nsrc, int nrcv, float ***u, float **src_coords, float **rec_coords)
 {
     int t, xi, yi;
+    for (int titer = 0; titer < timesteps-1; titer++) {
+    //for (int time = 0, t0 = (time)%(3), t1 = (time + 1)%(3), t2 = (time + 2)%(3); time <= timestamps; time += 1, t0 = (time)%(3), t1 = (time + 1)%(3), t2 = (time + 2)%(3))
+//{
+        t = 0;
 
-    for (t = 0; t < timesteps; t++) {
-        B[1:nrows-2][1:ncols-2] = (A[1:nrows-2][1:ncols-2] + A[0:nrows-3][1:ncols-2] + A[2:nrows-1][1:ncols-2] + A[1:nrows-2][0:ncols-3] + A[1:nrows-2][2:ncols-1])/6;
-        A[0:nrows-1][0:ncols-1] = B[0:nrows-1][0:ncols-1]; //Cilk array notation
+        u[1:nrows-2][1:ncols-2][t+1] = (u[1:nrows-2][1:ncols-2][t] + u[0:nrows-3][1:ncols-2][t] + u[2:nrows-1][1:ncols-2][t] + u[1:nrows-2][0:ncols-3][t] + u[1:nrows-2][2:ncols-1][t] )/6;
+        u[0:nrows-1][0:ncols-1][t] = u[0:nrows-1][0:ncols-1][t+1]; //Cilk array notation
 
         int x_m = 1;
         int x_M = nrows;
@@ -176,7 +242,7 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
                 int r6 = ii_src_1 + 1;
                 float r7 = 5.7121e-2F*(2.5e-1F*px*py - 5.0e-1F*px - 5.0e-1F*py + 1);
                 //*src[time][p_src]/m[r5][r6];
-                B[r3][r4] += r7;
+                u[r3][r4][t+1] += r7;
             }
             if (ii_src_0 >= x_m - 1 && ii_src_2 >= y_m - 1 && ii_src_0 <= x_M + 1 && ii_src_2 <= y_M + 1)
             {
@@ -186,7 +252,7 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
                 int r11 = ii_src_2 + 1;
                 float r12 = 5.7121e-2F*(-2.5e-1F*px*py + 5.0e-1F*py);
                 //*src[time][p_src]/m[r10][r11];
-                B[r8][r9] += r12;
+                u[r8][r9][t+1] += r12;
             }
             if (ii_src_1 >= y_m - 1 && ii_src_3 >= x_m - 1 && ii_src_1 <= y_M + 1 && ii_src_3 <= x_M + 1)
             {
@@ -196,7 +262,7 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
                 int r16 = ii_src_1 + 1;
                 float r17 = 5.7121e-2F*(-2.5e-1F*px*py + 5.0e-1F*px);
                 //*src[time][p_src]/m[r15][r16];
-                B[r13][r14] += r17;
+                u[r13][r14][t+1] += r17;
             }
             if (ii_src_2 >= y_m - 1 && ii_src_3 >= x_m - 1 && ii_src_2 <= y_M + 1 && ii_src_3 <= x_M + 1)
             {
@@ -206,10 +272,8 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
                 int r21 = ii_src_2 + 1;
                 float r22 = 1.428025e-2F*px*py;
                 //*src[time][p_src]/m[r20][r21];
-                B[r18][r19] += r22;
+                u[r18][r19][t+1] += r22;
             }
-            A[0:nrows-1][0:ncols-1] = B[0:nrows-1][0:ncols-1]; //Cilk array notation
-
         }
 
         for (int p_rec = 0; p_rec <= nrcv; p_rec += 1)
@@ -227,33 +291,34 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
               {
                 int r25 = ii_rec_0 + 2;
                 int r26 = ii_rec_1 + 2;
-                sum += (2.5e-1F*px*py - 5.0e-1F*px - 5.0e-1F*py + 1)*B[r25][r26];
+                sum += (2.5e-1F*px*py - 5.0e-1F*px - 5.0e-1F*py + 1)*u[r25][r26][t+1];
               }
               if (ii_rec_0 >= x_m - 1 && ii_rec_2 >= y_m - 1 && ii_rec_0 <= x_M + 1 && ii_rec_2 <= y_M + 1)
               {
                 int r27 = ii_rec_0 + 2;
                 int r28 = ii_rec_2 + 2;
-                sum += (-2.5e-1F*px*py + 5.0e-1F*py)*B[r27][r28];
+                sum += (-2.5e-1F*px*py + 5.0e-1F*py)*u[r27][r28][t+1];
               }
               if (ii_rec_1 >= y_m - 1 && ii_rec_3 >= x_m - 1 && ii_rec_1 <= y_M + 1 && ii_rec_3 <= x_M + 1)
               {
                 int r29 = ii_rec_3 + 2;
                 int r30 = ii_rec_1 + 2;
-                sum += (-2.5e-1F*px*py + 5.0e-1F*px)*B[r29][r30];
+                sum += (-2.5e-1F*px*py + 5.0e-1F*px)*u[r29][r30][t+1];
               }
               if (ii_rec_2 >= y_m - 1 && ii_rec_3 >= x_m - 1 && ii_rec_2 <= y_M + 1 && ii_rec_3 <= x_M + 1)
               {
                 int r31 = ii_rec_3 + 2;
                 int r32 = ii_rec_2 + 2;
-                sum += 2.5e-1F*px*py*B[r31][r32];
+                sum += 2.5e-1F*px*py*u[r31][r32][t+1];
               }
               //rec[time][p_rec] = sum;
             }
+
     }
 
 
 
-
+return u;
 
 
 
@@ -261,9 +326,9 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
 }
 
 
-void validate(int nrows, int ncols, float **A, float **B)
+void validate3d(int nrows, int ncols, float ***u)
 {
-  if (A[0:nrows-1][0:ncols-1] == B[0:nrows-1][0:ncols-1]) {
+if (u[4:6][5:10] == u[4:6][5:10]) {
    //printf("Validated \n");
  }
  else {printf("Not equal \n");}
