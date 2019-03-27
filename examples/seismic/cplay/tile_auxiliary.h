@@ -14,7 +14,7 @@ float malloc2d(float *** C, int nrows, int ncols) {
             return 1;
         }
     }
-    printf("Allocated!\n");
+    //printf("Allocated!\n");
     return 0;
 }
 
@@ -255,4 +255,16 @@ jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int nsrc, int nrcv, 
 
 
 
+
+
+
+}
+
+
+void validate(int nrows, int ncols, float **A, float **B)
+{
+  if (A[0:nrows-1][0:ncols-1] == B[0:nrows-1][0:ncols-1]) {
+   //printf("Validated \n");
+ }
+ else {printf("Not equal \n");}
 }
