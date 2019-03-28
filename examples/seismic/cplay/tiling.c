@@ -8,6 +8,8 @@
 #include "xmmintrin.h"
 #include "pmmintrin.h"
 #include "tile_auxiliary.h"
+#include "tile_cilk.h"
+
 
 double*** createMatrix(int nrows, int ncols, int timestamps) {
 
@@ -92,6 +94,7 @@ int main(int argc, char **argv) {
     //}
 }
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
+    //u = jacobi_cilk_rcv_src(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u, src_coords, rec_coords);
     u = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
     elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
