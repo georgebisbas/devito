@@ -9,6 +9,8 @@
 #include "pmmintrin.h"
 #include "tile_auxiliary.h"
 #include "tile_cilk.h"
+#include "tile_blk.h"
+
 
 
 double*** createMatrix(int nrows, int ncols, int timestamps) {
@@ -66,6 +68,8 @@ int main(int argc, char **argv) {
     malloc2d(&src, nsrc, 2);
     float *** u;
     u = createMatrix(nrows, ncols, timestamps);
+    float *** u2;
+    u2 = createMatrix(nrows, ncols, timestamps);
 
 
     /* Flush denormal numbers to zero in hardware */
@@ -78,6 +82,8 @@ int main(int argc, char **argv) {
 
     //for (int i = 0; i < timestamps; i++) {
     initialize3(nrows, ncols,timestamps, u);
+    initialize3(nrows, ncols,timestamps, u2);
+
     //}
     //for (int k = 0; k < timestamps; k++) {
     if(0){
@@ -94,38 +100,48 @@ int main(int argc, char **argv) {
     //}
 }
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
-    //u = jacobi_cilk_rcv_src(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u, src_coords, rec_coords);
-    u = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u, src_coords, rec_coords);
+    u = jacobi_cilk_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
     elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
     printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
 
-    //for (int i = 0; i < timestamps; i++) {
-      //print_array_2d(nrows, ncols, timestamps, u[][][i]);
-     //}
+    printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
+    u2 = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u2, src_coords, rec_coords);
+    gettimeofday(&t2, NULL);    printf("... Finished \n");
+    elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
+    printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
 
-    // printMatrix3d(nrows,ncols,timestamps,u);
+
     if(0){
-    for (int k = 0; k < timestamps; k++) {
-      printf("\n ------------------------\n");
-        for (int i = 0; i < nrows; i++) {
-          printf("\n");
-          for (int j = 0; j < ncols; j++) {
-          //printf(" u[%d][%d][%d]: %1.1f", i, j, k, u[i][j][k]);
-          printf(" %1.1f", u[i][j][k]);
+        for (int k = 0; k < timestamps; k++) {
+          printf("\n ------------------------\n");
+            for (int i = 0; i < nrows; i++) {
+              printf("\n");
+              for (int j = 0; j < ncols; j++) {
+              //printf(" u[%d][%d][%d]: %1.1f", i, j, k, u[i][j][k]);
+              printf(" %1.1f", &u[i][j][k]);
+            }
+          }
+        }
+}
 
+
+int validate_flag=1;
+if(validate_flag){
+    for (int k = 0; k < timestamps; k++) {
+        for (int i = 0; i < nrows; i++) {
+          for (int j = 0; j < ncols; j++) {
+          if (u[i][j][k]=!u2[i][j][k]) {
+            printf(" Failed \n");
+          }
         }
       }
     }
-    }
-    //print_array_3d(nrows, ncols, timestamps, u[0]);
+}
 
-    //print_array_3d(nrows, ncols, u );
 
-    //validate3d(nrows, ncols, u);
-    printf(" Success ");
 		free(u);
-
+    free(u2);
     printf("\n");
     return 0;
 }

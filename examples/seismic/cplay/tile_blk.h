@@ -1,6 +1,7 @@
 
 
-float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timestamps, int nsrc, int nrcv, float ***u, float **src_coords, float **rec_coords)
+
+float *** jacobi_cilk_src_rcv(int timesteps, int nrows, int ncols, int timestamps, int nsrc, int nrcv, float ***u, float **src_coords, float **rec_coords)
 {
     int t, xi, yi;
     for (int titer = 0; titer < timesteps-1; titer++) {
@@ -9,13 +10,20 @@ float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timest
         t = 0;
 
         u[1:nrows-2][1:ncols-2][t+1] = (u[1:nrows-2][1:ncols-2][t] + u[0:nrows-3][1:ncols-2][t] + u[2:nrows-1][1:ncols-2][t] + u[1:nrows-2][0:ncols-3][t] + u[1:nrows-2][2:ncols-1][t] )/6;
-        u[0:nrows-1][0:ncols-1][t] = u[0:nrows-1][0:ncols-1][t+1]; //Cilk array notation
+
+
+        for (size_t xi = 0; xi < nrows; xi++) {
+          for (size_t yi = 0; yi < ncols; yi++) {
+            u[xi][yi][t] = u[xi][yi][t+1];
+    //        u[0:nrows-1][0:ncols-1][t] = u[0:nrows-1][0:ncols-1][t+1]; //Cilk array notation
+          }
+        }
 
         int x_m = 1;
         int x_M = nrows;
         int y_m = 1;
         int y_M = ncols;
-        cilk_for (int p_src = 0; p_src < nsrc; p_src++) {
+        for (int p_src = 0; p_src < nsrc; p_src++) {
             float r1 = (int)(floor(5.0e-1F*src_coords[p_src][0]));
             int ii_src_0 = r1 + 10;
             float r2 = (int)(floor(5.0e-1F*src_coords[p_src][1]));
@@ -66,7 +74,7 @@ float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timest
             }
         }
 
-        cilk_for (int p_rec = 0; p_rec <= nrcv; p_rec += 1)
+        for (int p_rec = 0; p_rec <= nrcv; p_rec += 1)
             {
               float r23 = (int)(floor(-5.0e-1F + 5.0e-1F*rec_coords[p_rec][0]));
               int ii_rec_0 = r23 + 10;
@@ -106,8 +114,5 @@ float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timest
 
     }
 
-
-
 return u;
-
 }
