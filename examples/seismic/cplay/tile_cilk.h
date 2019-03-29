@@ -111,3 +111,77 @@ float *** jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timest
 return u;
 
 }
+
+
+
+float *** jacobi_3d_all(int timesteps, int nrows, int ncols, float ***grid)
+{
+    int t=0;
+    int xi=0;
+    int yi=0;
+
+
+
+    for (int titer = 0; titer < timesteps; titer++) {
+
+      if(1){
+        printf("\n ------------------------\n");
+          for (int i = 0; i < nrows; i++) {
+            printf("\n");
+            for (int j = 0; j < ncols; j++) {
+            printf(" %1.1f", grid[i][j][0]);
+          }
+        }
+      }
+
+
+        t = 0;
+        int x_m = 1;
+        int x_M = nrows-1;
+        int y_m = 1;
+        int y_M = ncols-1;
+
+        // Update core
+        for (int xi = x_m; xi < x_M; xi++) {
+          for (int yi = y_m; yi < y_M; yi++) {
+            grid[xi][yi][t+1] = (grid[xi][yi][t] + grid[xi-1][yi][t] + grid[xi+1][yi][t] + grid[xi][yi-1][t] + grid[xi][yi+1][t])/5;
+          }
+        }
+
+          // Update boundary
+          for (int yi = 1; yi < y_M-1; yi++) {
+            xi = 0;
+            grid[xi][yi][t+1] = (grid[xi][yi][t] + grid[xi][yi-1][t] + grid[xi][yi+1][t] + grid[xi+1][yi][t])/4;
+            xi = x_M;
+            grid[xi][yi][t+1] = (grid[xi][yi][t] + grid[xi][yi-1][t] + grid[xi][yi+1][t] + grid[xi-1][yi][t])/4;
+          }
+          for (int xi = 1; xi < x_M-1; xi++) {
+            yi = 0;
+            grid[xi][yi][t+1] = (grid[xi][yi][t] + grid[xi-1][yi][t] + grid[xi+1][yi][t] + grid[xi][yi+1][t])/4;
+            yi = y_M;
+            grid[xi][yi][t+1] = (grid[xi][yi][t] + grid[xi-1][yi][t] + grid[xi+1][yi][t] + grid[xi][yi-1][t])/4;
+          }
+
+          grid[0][0][t+1] = (grid[0][0][t] + grid[0][1][t] + grid[1][0][t])/3;
+          grid[x_M][y_M][t+1] = (grid[x_M][y_M][t] + grid[x_M-1][y_M][t] + grid[x_M][y_M-1][t])/3;
+
+          grid[0][y_M][t+1] = (grid[0][y_M][t] + grid[0][y_M-1][t] + grid[1][y_M][t])/3;
+          grid[x_M][0][t+1] = (grid[x_M][0][t] + grid[x_M-1][1][t] + grid[x_M][1][t])/3;
+
+
+        // Update old grid
+        for (int xi = 0; xi < nrows; xi++) {
+          for (int yi = 0; yi < ncols; yi++) {
+            grid[xi][yi][t] = grid[xi][yi][t+1];
+          }
+        }
+
+      }
+
+
+
+
+
+return grid;
+
+}

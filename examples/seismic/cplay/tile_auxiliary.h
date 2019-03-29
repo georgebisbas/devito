@@ -1,3 +1,5 @@
+
+
 float malloc2d(float *** C, int nrows, int ncols) {
     int i;
     *C = malloc( sizeof(float *) * nrows);
@@ -85,7 +87,7 @@ void initialize3(int nrows, int ncols, int timestamps, float ***A_init)
     for (xi = 0; xi < nrows; xi+=1) {
         for (yi = 0; yi < ncols; yi+=1) {
           for (ti = 0; ti < timestamps; ti+=1) {
-            A_init[xi][yi][ti] = 10;
+            A_init[xi][yi][ti] = fabs(xi-yi);
         }
     }
   }
@@ -107,21 +109,17 @@ void printMatrix3d(int nrows, int ncols, int timestamps, float ***matrix) {
 
 
 
-
-
-
-
-void print_array_2d(int nrows, int ncols, int timestamps, float ***B)
+void print_array_2d(int nrows, int ncols,int timestamps, float B[nrows][ncols][timestamps])
 {
     int xi = 0;
     int yi = 0;
     int ti = 0;
     printf("\n");
 
-    for (xi = 0; xi < nrows; xi+=1) {
+    for (xi = 0; xi < nrows; xi++) {
         printf("\n");
-        for (yi = 0; yi < ncols; yi+=1) {
-            printf("%1.1f ", &B[xi][yi][0]);
+        for (yi = 0; yi < ncols; yi++) {
+            printf("%3.3f ", B[xi][yi][0]);
         }
     }
 }
