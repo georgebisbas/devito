@@ -38,6 +38,9 @@ int main(int argc, char **argv) {
     int nsrc = 1;
     int nrecs = 10;
     int timestamps = 2;
+    int omp_opt=0;
+
+
 
     struct timeval t1, t2;
     double elapsedTime;
@@ -67,33 +70,9 @@ int main(int argc, char **argv) {
     initialize3(nrows, ncols,timestamps, u2);
 
 
-    if(0){
-
-      printf("\n ------------------------\n");
-        for (int i = 0; i < nrows; i++) {
-          printf("\n");
-          for (int j = 0; j < ncols; j++) {
-          printf(" %1.1f", u[i][j][0]);
-
-        }
-      }
-    }
-
-    if(0){
-
-      printf("\n ------------------------\n");
-        for (int i = 0; i < nrows; i++) {
-          printf("\n");
-          for (int j = 0; j < ncols; j++) {
-          printf(" %1.1f", u2[i][j][0]);
-
-        }
-      }
-    }
-
     printf("\n Starting Jacobi..."); gettimeofday(&t1, NULL);
 
-    u = jacobi_3d_all(timesteps, nrows, ncols, u);
+    u = jacobi_3d_all(timesteps, nrows, ncols, u, omp_opt=0);
 
 
     gettimeofday(&t2, NULL);
@@ -102,11 +81,11 @@ int main(int argc, char **argv) {
     printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
 
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
-    u2 = jacobi_3d_all(timesteps, nrows, ncols, u2);
+    u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0);
         //u2 = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u2, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
     elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
-    printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
+    printf("Jacobi NAIVE, Time taken by program is : %3.3f\n",elapsedTime);
 
 
 
@@ -115,7 +94,7 @@ if(validate_flag){
     for (int k = 0; k < timestamps; k++) {
         for (int i = 0; i < nrows; i++) {
           for (int j = 0; j < ncols; j++) {
-          if (u[i][j][k]!=u2[i][j][k]) {
+          if ((u[i][j][k]-u2[i][j][k])> 0.1) {
             printf(" Failed \n");
           }
         }
@@ -123,13 +102,13 @@ if(validate_flag){
     }
 }
 
-/*
+
 if(0){
   printf("\n ------------------------\n");
     for (int i = 0; i < nrows; i++) {
       printf("\n");
       for (int j = 0; j < ncols; j++) {
-      printf(" %3.3f", u2[i][j][0]);
+      printf(" %3.3f", u[i][j][1]);
     }
   }
 }
@@ -139,11 +118,11 @@ if(0){
     for (int i = 0; i < nrows; i++) {
       printf("\n");
       for (int j = 0; j < ncols; j++) {
-      printf(" %3.3f", u[i][j][0]);
+      printf(" %3.3f", u2[i][j][1]);
     }
   }
 }
-*/
+
 
 
 
