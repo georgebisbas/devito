@@ -184,6 +184,11 @@ double *** jacobi_3d_all_SKEW(int timesteps, int nrows, int ncols, double ** * g
     if (omp_opt == 1) {
       /* code */
       //printf("\n PARALLEL \n");
+
+
+      // TO ADD blocksss
+
+
       for (int xi = x_m; xi < x_M; xi++) {
         #pragma omp simd
         for (int yi = y_m; yi < y_M; yi += 1) {
