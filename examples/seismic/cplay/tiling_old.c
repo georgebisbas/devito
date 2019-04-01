@@ -17,11 +17,11 @@ int main(int argc, const char * argv[]) {
   struct timeval t1, t2;
   double elapsedTime;
 
-  //float ** A = mem_allocate(nrows, ncols, A);
+  //double ** A = mem_allocate(nrows, ncols, A);
 
-  float ** A;
+  double ** A;
   malloc2d(&A, nrows, ncols);
-  float ** B;
+  double ** B;
   malloc2d(&B, nrows, ncols);
 
   /* Flush denormal numbers to zero in hardware */

@@ -46,19 +46,19 @@ int main(int argc, char **argv) {
     double elapsedTime;
     printf("Problem setup is \nnrows: %d\n ncols: %d\nTimesteps: %d\nTimestamps: %d\n",nrows, ncols, timesteps, timestamps);
 
-    float ** A;
+    double ** A;
     malloc2d(&A, nrows, ncols);
-    float ** B; // B is like A(t-1)
+    double ** B; // B is like A(t-1)
     malloc2d(&B, nrows, ncols);
-    float ** src_coords; // B is like A(t-1)
+    double ** src_coords; // B is like A(t-1)
     malloc2d(&src_coords, nsrc, 2);
-    float ** rec_coords; // B is like A(t-1)
+    double ** rec_coords; // B is like A(t-1)
     malloc2d(&rec_coords, nsrc, 2);
-    float ** src; // B is like A(t-1)
+    double ** src; // B is like A(t-1)
     malloc2d(&src, nsrc, 2);
-    float *** u;
+    double *** u;
     u = createMatrix(nrows, ncols, timestamps);
-    float *** u2;
+    double *** u2;
     u2 = createMatrix(nrows, ncols, timestamps);
 
 
@@ -73,7 +73,6 @@ int main(int argc, char **argv) {
     printf("\n Starting Jacobi..."); gettimeofday(&t1, NULL);
 
     u = jacobi_3d_all(timesteps, nrows, ncols, u, omp_opt=0);
-
 
     gettimeofday(&t2, NULL);
     printf("... Finished \n");
@@ -94,7 +93,7 @@ if(validate_flag){
     for (int k = 0; k < timestamps; k++) {
         for (int i = 0; i < nrows; i++) {
           for (int j = 0; j < ncols; j++) {
-          if ((u[i][j][k]-u2[i][j][k])> 0.1) {
+          if ((u[i][j][k]-u2[i][j][k])> 0.01) {
             printf(" Failed \n");
           }
         }
@@ -103,27 +102,26 @@ if(validate_flag){
 }
 
 
-if(0){
+int si = 40; int ei = 50; int sc = 40; int ec = 50;
+if(1){
   printf("\n ------------------------\n");
-    for (int i = 0; i < nrows; i++) {
+    for (int i = si; i < ei; i++) {
       printf("\n");
-      for (int j = 0; j < ncols; j++) {
+      for (int j = sc; j < ec; j++) {
       printf(" %3.3f", u[i][j][1]);
     }
   }
 }
 
-if(0){
+if(1){
   printf("\n ------------------------\n");
-    for (int i = 0; i < nrows; i++) {
+    for (int i = si; i < ei; i++) {
       printf("\n");
-      for (int j = 0; j < ncols; j++) {
+      for (int j = sc; j < ec; j++) {
       printf(" %3.3f", u2[i][j][1]);
     }
   }
 }
-
-
 
 
 		free(u);

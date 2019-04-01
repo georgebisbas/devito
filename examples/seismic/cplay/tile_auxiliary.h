@@ -1,8 +1,8 @@
 
 
-float malloc2d(float *** C, int nrows, int ncols) {
+double malloc2d(double *** C, int nrows, int ncols) {
     int i;
-    *C = malloc( sizeof(float *) * nrows);
+    *C = malloc( sizeof(double *) * nrows);
 
     if (*C == NULL) {
         printf("ERROR: out of memory\n");
@@ -10,7 +10,7 @@ float malloc2d(float *** C, int nrows, int ncols) {
     }
 
     for (i=0; i<nrows; i++) {
-        (*C)[i] = malloc( sizeof(float) * ncols);
+        (*C)[i] = malloc( sizeof(double) * ncols);
         if ((*C)[i] == NULL) {
             printf("ERROR: out of memory\n");
             return 1;
@@ -20,12 +20,12 @@ float malloc2d(float *** C, int nrows, int ncols) {
     return 0;
 }
 
-float malloc3d(float *** C, int timestamps, int nrows, int ncols) {
+double malloc3d(double *** C, int timestamps, int nrows, int ncols) {
     int i,t_i;
-    C = (float ***) malloc (sizeof(float **) * timestamps);
+    C = (double ***) malloc (sizeof(double **) * timestamps);
 
     for (t_i = 0; t_i < timestamps; t_i++) {
-      C[t_i] = (float **) malloc( sizeof(float *) * nrows);
+      C[t_i] = (double **) malloc( sizeof(double *) * nrows);
 
       if (*C == NULL) {
           printf("ERROR: out of memory\n");
@@ -33,7 +33,7 @@ float malloc3d(float *** C, int timestamps, int nrows, int ncols) {
         }
 
         for (i=0; i<nrows; i++) {
-          C[t_i][i] = (float *)malloc( sizeof(float) * ncols);
+          C[t_i][i] = (double *)malloc( sizeof(double) * ncols);
           if (C[t_i][i] == NULL) {
               printf("ERROR: out of memory\n");
               return 1;
@@ -50,14 +50,14 @@ float malloc3d(float *** C, int timestamps, int nrows, int ncols) {
 }
 
 
-void mem_allocate(int nrows, int ncols, float **C)
+void mem_allocate(int nrows, int ncols, double **C)
 {
-    C = malloc(nrows * sizeof(float * ));
+    C = malloc(nrows * sizeof(double * ));
     if (C == NULL) {
         fprintf(stderr, "out of memory\n");
     }
     for (int i = 0; i < nrows; i+=1) {
-        C[i] = malloc(ncols * sizeof(float));
+        C[i] = malloc(ncols * sizeof(double));
         if (C[i] == NULL) {
             fprintf(stderr, "out of memory\n");
         }
@@ -65,7 +65,7 @@ void mem_allocate(int nrows, int ncols, float **C)
     //return C;
 }
 
-void initialize2(int nrows, int ncols, float **A_init)
+void initialize2(int nrows, int ncols, double **A_init)
 {
     // Initialize the matrix
     int ti = 0;
@@ -78,7 +78,7 @@ void initialize2(int nrows, int ncols, float **A_init)
   }
 }
 
-void initialize3(int nrows, int ncols, int timestamps, float ***A_init)
+void initialize3(int nrows, int ncols, int timestamps, double ***A_init)
 {
     // Initialize the matrix
     int ti = 0;
@@ -93,7 +93,7 @@ void initialize3(int nrows, int ncols, int timestamps, float ***A_init)
   }
 }
 
-void printMatrix3d(int nrows, int ncols, int timestamps, float ***matrix) {
+void printMatrix3d(int nrows, int ncols, int timestamps, double ***matrix) {
 
   for (int i = 0; i < nrows; i++) {
     for (int j = 0; j < ncols; j++) {
@@ -109,7 +109,7 @@ void printMatrix3d(int nrows, int ncols, int timestamps, float ***matrix) {
 
 
 
-void print_array_2d(int nrows, int ncols,int timestamps, float B[nrows][ncols][timestamps])
+void print_array_2d(int nrows, int ncols,int timestamps, double B[nrows][ncols][timestamps])
 {
     int xi = 0;
     int yi = 0;
@@ -127,7 +127,7 @@ void print_array_2d(int nrows, int ncols,int timestamps, float B[nrows][ncols][t
 
 
 
-void jacobi_omp_par(int timesteps, int nrows, int ncols, float **A, float **B)
+void jacobi_omp_par(int timesteps, int nrows, int ncols, double **A, double **B)
 {
     int t, xi, yi;
     for (t = 0; t < timesteps; t++) {
@@ -147,7 +147,7 @@ void jacobi_omp_par(int timesteps, int nrows, int ncols, float **A, float **B)
     }
 }
 
-void jacobi_omp_parsimd(int timesteps, int nrows, int ncols, float **A, float **B)
+void jacobi_omp_parsimd(int timesteps, int nrows, int ncols, double **A, double **B)
 {
     int t, xi, yi;
     for (t = 0; t < timesteps; t++) {
@@ -169,7 +169,7 @@ void jacobi_omp_parsimd(int timesteps, int nrows, int ncols, float **A, float **
     }
 }
 
-void jacobi_omp_simd(int timesteps, int nrows, int ncols, float **A, float **B)
+void jacobi_omp_simd(int timesteps, int nrows, int ncols, double **A, double **B)
 {
     int t, xi, yi;
     for (t = 0; t < timesteps; t+=1) {
@@ -189,7 +189,7 @@ void jacobi_omp_simd(int timesteps, int nrows, int ncols, float **A, float **B)
     }
 }
 
-void jacobi_cilk(int timesteps, int nrows, int ncols, float **A, float **B)
+void jacobi_cilk(int timesteps, int nrows, int ncols, double **A, double **B)
 {
     int t, xi, yi;
     for (t = 0; t < timesteps; t+=1) {
@@ -209,7 +209,7 @@ void jacobi_cilk(int timesteps, int nrows, int ncols, float **A, float **B)
 
 
 
-void validate3d(int nrows, int ncols, float ***u, float ***u2)
+void validate3d(int nrows, int ncols, double ***u, double ***u2)
 {
 if (u[4:6][5:10] == u2[4:6][5:10]) {
    //printf("Validated \n");
