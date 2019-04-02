@@ -1,3 +1,5 @@
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 double ** * jacobi_omp_par_src_rcv(int timesteps, int nrows, int ncols, int timestamps, int nsrc, int nrcv, double ** * u, double ** src_coords, double ** rec_coords) {
   int t, xi, yi;
   for (int titer = 0; titer < timesteps - 1; titer++) {
@@ -102,6 +104,7 @@ double ** * jacobi_3d_all(int timesteps, int nrows, int ncols, double ** * grid,
   int t = 0;
   int xi = 0;
   int yi = 0;
+  int tile_size = 50;
 
   for (int titer = 0; titer < timesteps; titer++) {
 
@@ -115,6 +118,7 @@ double ** * jacobi_3d_all(int timesteps, int nrows, int ncols, double ** * grid,
     if (omp_opt == 1) {
       /* code */
       //printf("\n PARALLEL \n");
+
       for (int xi = x_m; xi < x_M; xi++) {
 
         #pragma omp simd
@@ -124,12 +128,17 @@ double ** * jacobi_3d_all(int timesteps, int nrows, int ncols, double ** * grid,
         }
       }
     } else {
-      for (int xi = x_m; xi < x_M; xi++) {
-        for (int yi = y_m; yi < y_M; yi++) {
+
+    for (int xblk = x_m; xblk < x_M; xblk+=tile_size) {
+      for (int xi = xblk; xi < min(x_M, (xblk + tile_size)); xi++) {
+        for (int yblk = y_m; yblk < y_M; yblk += tile_size) {
+        for (int yi = yblk; yi < min(y_M, (yblk + tile_size)); yi++) {
           grid[xi][yi][t + 1] = (grid[xi][yi][t] + grid[xi - 1][yi][t] + grid[xi + 1][yi][t] + grid[xi][yi - 1][t] + grid[xi][yi + 1][t]) / 5;
         }
       }
     }
+   }
+  }
     // Update boundary
     for (int yi = 1; yi < y_M - 1; yi++) {
       xi = 0;
@@ -169,6 +178,7 @@ double *** jacobi_3d_all_SKEW(int timesteps, int nrows, int ncols, double ** * g
   int t = 0;
   int xi = 0;
   int yi = 0;
+  int tile_size = 50;
 
   for (int titer = 0; titer < timesteps; titer++) {
 
@@ -199,13 +209,27 @@ double *** jacobi_3d_all_SKEW(int timesteps, int nrows, int ncols, double ** * g
       }
     } else {
       //printf("\n Skewed version...");
-      for (int xi = (x_m + tx_skewed) ; xi < (x_M +  tx_skewed) ; xi++) {
-        for (int yi = (y_m + ty_skewed); yi < (y_M + ty_skewed); yi++) {
+
+
+      for (int xblk = x_m; xblk < x_M; xblk+=tile_size) {
+        for (int xi = (xblk + tx_skewed); xi < min( (x_M + tx_skewed), (xblk + tile_size + tx_skewed)); xi++) {
+          for (int yblk = y_m; yblk < y_M; yblk += tile_size) {
+          for (int yi = (yblk + ty_skewed); yi < min((y_M + ty_skewed), (yblk + tile_size + ty_skewed)); yi++) {
+
+
+
+      //for (int xi = (x_m + tx_skewed) ; xi < (x_M +  tx_skewed) ; xi++) {
+      //  for (int yi = (y_m + ty_skewed); yi < (y_M + ty_skewed); yi++) {
+
+
+
+
           grid[xi - tx_skewed][yi - ty_skewed][t + 1] = (grid[xi - tx_skewed][yi - ty_skewed][t] + grid[(xi - tx_skewed) - 1][yi - ty_skewed][t] + grid[(xi - tx_skewed)][(yi - ty_skewed) - 1][t]);
           grid[xi - tx_skewed][yi - ty_skewed][t + 1] = (grid[xi - tx_skewed][yi - ty_skewed][t + 1]  + grid[(xi - tx_skewed) + 1][yi - ty_skewed][t]  + grid[(xi - tx_skewed)][(yi - ty_skewed) + 1][t]);
           grid[xi - tx_skewed][yi - ty_skewed][t + 1] =  grid[xi - tx_skewed][yi - ty_skewed][t + 1]/ 5;        }
 
-
+        }
+      }
       }
     }
     // Update boundary

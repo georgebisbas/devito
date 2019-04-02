@@ -4,13 +4,14 @@
 #include "sys/time.h"
 #include <time.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <cilk/cilk.h>
 #include "xmmintrin.h"
 #include "pmmintrin.h"
 #include "tile_auxiliary.h"
 #include "tile_cilk.h"
 #include "tile_blk.h"
-
+#define min(a, b) (((a) < (b)) ? (a) : (b))
 
 
 double*** createMatrix(int nrows, int ncols, int timestamps) {
@@ -80,6 +81,7 @@ int main(int argc, char **argv) {
     printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
 
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
+    
     u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0);
         //u2 = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u2, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
