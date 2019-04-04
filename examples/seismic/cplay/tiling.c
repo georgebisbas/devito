@@ -40,11 +40,12 @@ int main(int argc, char **argv) {
     int nrecs = 10;
     int timestamps = 2;
     int omp_opt=0;
+    int tile_size = 16;
 
 
 
     struct timeval t1, t2;
-    double elapsedTime;
+    double elapsedTime1, elapsedTime2;
     printf("Problem setup is \nnrows: %d\n ncols: %d\nTimesteps: %d\nTimestamps: %d\n",nrows, ncols, timesteps, timestamps);
 
     double ** A;
@@ -73,20 +74,23 @@ int main(int argc, char **argv) {
 
     printf("\n Starting Jacobi..."); gettimeofday(&t1, NULL);
 
-    u = jacobi_3d_all(timesteps, nrows, ncols, u, omp_opt=0);
+    u = jacobi_3d_all(timesteps, nrows, ncols, u, omp_opt=0, tile_size);
 
     gettimeofday(&t2, NULL);
     printf("... Finished \n");
-    elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
-    printf("Jacobi OpenMP par-for, Time taken by program is : %3.3f\n",elapsedTime);
+    elapsedTime1 = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
+    printf("Jacobi OpenMP, Time taken by program is : %3.3f\n",elapsedTime1);
 
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
-    
-    u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0);
+
+    u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0,tile_size);
         //u2 = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u2, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
-    elapsedTime = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
-    printf("Jacobi NAIVE, Time taken by program is : %3.3f\n",elapsedTime);
+    elapsedTime2 = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
+    printf("Jacobi skewed, Time taken by program is : %3.3f\n",elapsedTime2);
+
+    printf(" Speedup from skeweing is : %3.3f\n", elapsedTime2/elapsedTime1);
+
 
 
 
