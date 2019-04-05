@@ -10,6 +10,7 @@
 #include "pmmintrin.h"
 #include "tile_auxiliary.h"
 #include "tile_cilk.h"
+#include "tiled_buffer.h"
 #include "tile_blk.h"
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -38,9 +39,10 @@ int main(int argc, char **argv) {
 
     int nsrc = 1;
     int nrecs = 10;
-    int timestamps = 2;
+    int timestamps = 4;
+    int timestamps2 = 4;
     int omp_opt=0;
-    int tile_size = 16;
+    int tile_size = 1000;
 
 
 
@@ -61,7 +63,7 @@ int main(int argc, char **argv) {
     double *** u;
     u = createMatrix(nrows, ncols, timestamps);
     double *** u2;
-    u2 = createMatrix(nrows, ncols, timestamps);
+    u2 = createMatrix(nrows, ncols, timestamps2);
 
 
     /* Flush denormal numbers to zero in hardware */
@@ -69,7 +71,7 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 
     initialize3(nrows, ncols,timestamps, u);
-    initialize3(nrows, ncols,timestamps, u2);
+    initialize3(nrows, ncols, timestamps2, u2);
 
 
     printf("\n Starting Jacobi..."); gettimeofday(&t1, NULL);
@@ -83,7 +85,9 @@ int main(int argc, char **argv) {
 
     printf("Starting Jacobi..."); gettimeofday(&t1, NULL);
 
-    u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0,tile_size);
+    //u2 = jacobi_3d_all_SKEW(timesteps, nrows, ncols, u2, omp_opt=0,tile_size);
+    u2 = buffer_jacobi_3d(timesteps, nrows, ncols, u2, omp_opt=0,tile_size);
+
         //u2 = jacobi_omp_par_src_rcv(timesteps, nrows, ncols, timestamps, nsrc, nrecs, u2, src_coords, rec_coords);
     gettimeofday(&t2, NULL);    printf("... Finished \n");
     elapsedTime2 = (double)(t2.tv_sec-t1.tv_sec)+(double)(t2.tv_usec-t1.tv_usec)/1000000;
@@ -108,7 +112,7 @@ if(validate_flag){
 }
 
 
-int si = 40; int ei = 50; int sc = 40; int ec = 50;
+int si = 10; int ei = 15; int sc = 10; int ec = 15;
 if(1){
   printf("\n ------------------------\n");
     for (int i = si; i < ei; i++) {
