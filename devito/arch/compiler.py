@@ -12,14 +12,14 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.archinfo import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
+from devito.arch import AMDGPUX, NVIDIAX, SKX, POWER8, POWER9
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_tuple, change_directory, filter_ordered,
                           memoized_meth, make_tempdir)
 
-__all__ = ['GNUCompiler']
+__all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
 def sniff_compiler_version(cc):
@@ -356,7 +356,11 @@ class GNUCompiler(Compiler):
         super(GNUCompiler, self).__init__(*args, **kwargs)
 
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable', '-ffast-math']
+                        '-Wno-unused-but-set-variable']
+        if configuration['safe-math']:
+            self.cflags.append('-fno-unsafe-math-optimizations')
+        else:
+            self.cflags.append('-ffast-math')
 
         language = kwargs.pop('language', configuration['language'])
         try:
@@ -381,7 +385,9 @@ class ClangCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -425,7 +431,9 @@ class AOMPCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(AOMPCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable', '-ffast-math']
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
 
         platform = kwargs.pop('platform', configuration['platform'])
 
@@ -452,7 +460,9 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-fast', '-acc']
+        self.cflags += ['-std=c++11', '-acc', '-mp']
+        if not configuration['safe-math']:
+            self.cflags.append('-fast')
         # Default PGI compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
@@ -460,6 +470,15 @@ class PGICompiler(Compiler):
         # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
         self.CC = 'pgc++'
         self.CXX = 'pgc++'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
+class NvidiaCompiler(PGICompiler):
+
+    def __lookup_cmds__(self):
+        self.CC = 'nvc++'
+        self.CXX = 'nvc++'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
@@ -578,6 +597,9 @@ compiler_registry = {
     'aomp': AOMPCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
+    'nvc': NvidiaCompiler,
+    'nvcc': NvidiaCompiler,
+    'nvidia': NvidiaCompiler,
     'osx': ClangCompiler,
     'intel': IntelCompiler,
     'icpc': IntelCompiler,

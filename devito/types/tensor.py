@@ -7,7 +7,7 @@ from sympy.core.decorators import call_highest_priority
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
-from devito.tools import flatten
+from devito.finite_differences.tools import make_shift_x0
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
 from devito.types.utils import NODE
@@ -76,13 +76,8 @@ class TensorFunction(AbstractTensor):
     _op_priority = Differentiable._op_priority + 1.
 
     def __init_finalize__(self, *args, **kwargs):
-        if args:
-            comps = flatten(args[2])
-            grid = comps[0].grid
-            dimensions = None if grid else comps[0].dimensions
-        else:
-            grid = kwargs.get('grid')
-            dimensions = kwargs.get('dimensions')
+        grid = kwargs.get('grid')
+        dimensions = kwargs.get('dimensions')
         inds, _ = Function.__indices_setup__(grid=grid,
                                              dimensions=dimensions)
         self._space_dimensions = inds
@@ -183,6 +178,10 @@ class TensorFunction(AbstractTensor):
                                           dimensions=kwargs.get('dimensions'))
 
     @property
+    def _symbolic_functions(self):
+        return frozenset().union(*[a._symbolic_functions for a in self.values()])
+
+    @property
     def is_TimeDependent(self):
         return self._is_TimeDependent
 
@@ -215,16 +214,18 @@ class TensorFunction(AbstractTensor):
         else:
             return super(TensorFunction, self).values()
 
-    @property
-    def div(self):
+    def div(self, shift=None):
         """
         Divergence of the TensorFunction (is a VectorFunction).
         """
         comps = []
-        func = vec_func(self, self)
-        for j, d in enumerate(self.space_dimensions):
+        func = vec_func(self)
+        ndim = len(self.space_dimensions)
+        shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
-                              for i, d in enumerate(self.space_dimensions)]))
+                              (x0=shift_x0(shift, d, i, j))
+                              for j, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
     @property
@@ -233,18 +234,17 @@ class TensorFunction(AbstractTensor):
         Laplacian of the TensorFunction.
         """
         comps = []
-        func = vec_func(self, self)
+        func = vec_func(self)
         for j, d in enumerate(self.space_dimensions):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
                               for i, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
-    @property
-    def grad(self):
+    def grad(self, shift=None):
         raise AttributeError("Gradient of a second order tensor not supported")
 
     def new_from_mat(self, mat):
-        func = tens_func(self, self)
+        func = tens_func(self)
         return func._new(self.rows, self.cols, mat)
 
     def classof_prod(self, other, mat):
@@ -306,12 +306,12 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    @property
-    def div(self):
+    def div(self, shift=None):
         """
         Divergence of the VectorFunction, creates the divergence Function.
         """
-        return sum([getattr(self[i], 'd%s' % d.name)
+        shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
+        return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
                     for i, d in enumerate(self.space_dimensions)])
 
     @property
@@ -319,13 +319,10 @@ class VectorFunction(TensorFunction):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
         """
-        comps = []
-        to = getattr(self, 'time_order', 0)
-        func = vec_func(self, self)
+        func = vec_func(self)
         comps = [sum([getattr(s, 'd%s2' % d.name) for d in self.space_dimensions])
                  for s in self]
-        return func(name='lap_%s' % self.name, grid=self.grid,
-                    space_order=self.space_order, components=comps, time_order=to)
+        return func._new(comps)
 
     @property
     def curl(self):
@@ -341,17 +338,19 @@ class VectorFunction(TensorFunction):
         comp2 = getattr(self[0], derivs[2]) - getattr(self[2], derivs[0])
         comp3 = getattr(self[1], derivs[0]) - getattr(self[0], derivs[1])
 
-        vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
-        return vec_func._new(3, 1, [comp1, comp2, comp3])
+        func = vec_func(self)
+        return func._new(3, 1, [comp1, comp2, comp3])
 
-    @property
-    def grad(self):
+    def grad(self, shift=None):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
         """
-        func = tens_func(self, self)
-        comps = [[getattr(f, 'd%s' % d.name) for d in self.space_dimensions]
-                 for f in self]
+        func = tens_func(self)
+        ndim = len(self.space_dimensions)
+        shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j))
+                  for j, d in enumerate(self.space_dimensions)]
+                 for i, f in enumerate(self)]
         return func._new(comps)
 
     def outer(self, other):
@@ -360,7 +359,7 @@ class VectorFunction(TensorFunction):
         return func._new(comps)
 
     def new_from_mat(self, mat):
-        func = vec_func(self, self)
+        func = vec_func(self)
         return func._new(self.rows, 1, mat)
 
 
@@ -399,16 +398,14 @@ mat_time_dict = {(True, True): TensorTimeFunction, (True, False): VectorTimeFunc
                  (False, True): TensorFunction, (False, False): VectorFunction}
 
 
-def vec_func(func1, func2):
-    f1 = getattr(func1, 'is_TimeDependent', False)
-    f2 = getattr(func2, 'is_TimeDependent', False)
-    return VectorTimeFunction if f1 or f2 else VectorFunction
+def vec_func(*funcs):
+    return (VectorTimeFunction if any([getattr(f, 'is_TimeDependent', False)
+            for f in funcs]) else VectorFunction)
 
 
-def tens_func(func1, func2):
-    f1 = getattr(func1, 'is_TimeDependent', False)
-    f2 = getattr(func2, 'is_TimeDependent', False)
-    return TensorTimeFunction if f1 or f2 else TensorFunction
+def tens_func(*funcs):
+    return (TensorTimeFunction if any([getattr(f, 'is_TimeDependent', False)
+            for f in funcs]) else TensorFunction)
 
 
 def sympify_tensor(arg):

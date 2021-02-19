@@ -16,9 +16,8 @@ from devito.types.relational import *  # noqa
 from devito.types.tensor import *  # noqa
 
 # Imports required to initialize Devito
-from devito.archinfo import platform_registry
+from devito.arch import compiler_registry, platform_registry
 from devito.backends import backends_registry, init_backend
-from devito.compiler import compiler_registry
 from devito.logger import error, warning, info, logger_registry, set_log_level  # noqa
 from devito.operator import profiler_registry, operator_registry
 
@@ -72,6 +71,11 @@ configuration.add('log-level', 'INFO', list(logger_registry),
 # overwrite the user-modified files (thus entirely bypassing code generation),
 # and will instead use the custom kernel
 configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=False)
+
+# By default unsafe math is allowed as most applications are insensitive to
+# floating-point roundoff errors. Enabling this disables unsafe math
+# optimisations.
+configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])

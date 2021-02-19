@@ -750,6 +750,28 @@ class TestAliases(object):
         assert np.isclose(expected, norm(u1), rtol=1e-5)
         assert np.isclose(expected, norm(u2), rtol=1e-5)
 
+    def test_min_storage_issue_1506(self):
+        grid = Grid(shape=(10, 10))
+
+        u1 = TimeFunction(name='u1', grid=grid, time_order=2, space_order=4, save=10)
+        u2 = TimeFunction(name='u2', grid=grid, time_order=2, space_order=4, save=10)
+        v1 = TimeFunction(name='v1', grid=grid, time_order=2, space_order=4, save=None)
+        v2 = TimeFunction(name='v2', grid=grid, time_order=2, space_order=4, save=None)
+
+        eqns = [Eq(u1.forward, (u1+u2).laplace),
+                Eq(u2.forward, (u1-u2).laplace),
+                Eq(v1.forward, (v1+v2).laplace + u1.dt2),
+                Eq(v2.forward, (v1-v2).laplace + u2.dt2)]
+
+        op0 = Operator(eqns, opt=('advanced', {'min-storage': False,
+                                               'cire-mincost-sops': 1}))
+        op1 = Operator(eqns, opt=('advanced', {'min-storage': True,
+                                               'cire-mincost-sops': 1}))
+
+        # Check code generation
+        # min-storage has no effect in this example
+        assert str(op0) == str(op1)
+
     @pytest.mark.parametrize('rotate', [False, True])
     def test_mixed_shapes_v2_w_subdims(self, rotate):
         """
@@ -1786,17 +1808,54 @@ class TestAliases(object):
         assert len(pbs) == 1
         pb = pbs[0]
         if rotate:
-            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.body[0].header[0])
-            assert 'r3[2][z_size]' in str(pb.body[0].header[1])
+            assert 'r6[2][y0_blk0_size][z_size]' in str(pb.partree.prefix[0].header[0])
+            assert 'r3[2][z_size]' in str(pb.partree.prefix[0].header[1])
         else:
             assert 'r6[x0_blk0_size + 1][y0_blk0_size][z_size]'\
-                in str(pb.body[0].header[0])
-            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.body[0].header[1])
+                in str(pb.partree.prefix[0].header[0])
+            assert 'r3[y0_blk0_size + 1][z_size]' in str(pb.partree.prefix[0].header[1])
 
         # Check numerical output
         op0.apply(time_M=2)
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-7)
+
+    @pytest.mark.parametrize('rotate', [False, True])
+    def test_grouping_fallback(self, rotate):
+        """
+        MFE for issue #1477.
+        """
+        space_order = 8
+        grid = Grid(shape=(21, 21, 11))
+
+        eps = Function(name='eps', grid=grid, space_order=space_order)
+        p = TimeFunction(name='p', grid=grid, time_order=2, space_order=space_order)
+        p1 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=space_order)
+
+        p.data[:] = 0.02
+        p1.data[:] = 0.02
+        eps.data_with_halo[:] =\
+            np.linspace(0.1, 0.3, eps.data_with_halo.size).reshape(*eps.shape_with_halo)
+
+        eqn = Eq(p.forward, ((1+sqrt(eps)) * p.dy).dy + (p.dz).dz)
+
+        op0 = Operator(eqn, opt=('noop', {'openmp': True}))
+        op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-rotate': rotate}))
+
+        # Check code generation
+        # `min-storage` leads to one 2D and one 3D Arrays
+        xs, ys, zs = self.get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(op1._func_table['bf0']) if i.is_Array]
+        assert len(arrays) == 3
+        assert len([i for i in arrays if i._mem_shared]) == 1
+        assert len([i for i in arrays if i._mem_local]) == 2
+        self.check_array(arrays[0], ((4, 4),), (zs+8,))  # On purpose w/o `rotate`
+        self.check_array(arrays[1], ((4, 4), (0, 0)), (ys+8, zs), rotate)
+
+        # Check numerical output
+        op0.apply(time_M=2)
+        op1.apply(time_M=2, p=p1)
+        assert np.isclose(norm(p), norm(p1), rtol=1e-7)
 
 
 # Acoustic

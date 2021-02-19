@@ -11,12 +11,12 @@ from cached_property import cached_property
 from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.finite_differences import Evaluable
 from devito.symbolics import aligned_indices
 from devito.tools import (Pickable, ctypes_to_cstr, dtype_to_cstr, dtype_to_ctype,
                           frozendict, memoized_meth)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached
+from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
@@ -68,6 +68,7 @@ class Basic(object):
     is_ArrayBasic = False
     is_Array = False
     is_PointerArray = False
+    is_ObjectArray = False
     is_Object = False
     is_LocalObject = False
 
@@ -162,6 +163,19 @@ class Basic(object):
             such as float or int.
         """
         return
+
+    @property
+    def _C_symbol(self):
+        """
+        The C-level symbol. This may or may not coincide with the symbol used
+        to make up an `Eq`. For example, if `self` provides the C code with
+        a struct, then the _C_symbol will be the symbol representing such struct.
+
+        Returns
+        -------
+        Basic
+        """
+        return self
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
@@ -497,8 +511,25 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 # Constructor if input is list of list as (row, cols, list_of_list)
                 # doesn't work as it expects a flattened.
                 newobj = super(AbstractTensor, cls)._new(args[2])
+
+            # Filter grid and dimensions
+            grids = {getattr(c, 'grid', None) for c in newobj._mat} - {None}
+            dimensions = {d for c in newobj._mat
+                          for d in getattr(c, 'dimensions', ())} - {None}
+            # If none of the components are devito objects, returns a sympy Matrix
+            if len(grids) == 0 and len(dimensions) == 0:
+                return sympy.ImmutableDenseMatrix(*args)
+            elif len(grids) > 0:
+                dimensions = None
+                assert len(grids) == 1
+                grid = grids.pop()
+            else:
+                grid = None
+                dimensions = tuple(dimensions)
+
             # Initialized with constructed object
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat)
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj._mat,
+                                     grid=grid, dimensions=dimensions)
         else:
             # Initialize components and create new Matrix from standard
             # Devito inputs
@@ -718,7 +749,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def indices(self):
         """The indices (aka dimensions) of the object."""
-        return self.args
+        return DimensionTuple(*self.args, getters=self.dimensions)
 
     @property
     def indices_ref(self):
@@ -868,6 +899,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def _C_typedata(self):
         return dtype_to_cstr(self.dtype)
+
+    @cached_property
+    def _C_symbol(self):
+        return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
 
     @cached_property
     def _size_domain(self):
@@ -1148,7 +1183,7 @@ class IndexedData(sympy.IndexedBase, Pickable):
     def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
-            label = Symbol(name=label, dtype=function.dtype)
+            label = Symbol(name=label, dtype=None)
         obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -1168,6 +1203,31 @@ class IndexedData(sympy.IndexedBase, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
+class BoundSymbol(AbstractSymbol):
+
+    """
+    Wrapper class for Symbols that are bound to a symbolic data object.
+
+    Notes
+    -----
+    By deliberately inheriting from AbstractSymbol, a BoundSymbol won't be
+    in the devito cache. This will avoid cycling references in the cache
+    (e.g., an entry for a Function `u(x)` and an entry for `u._C_symbol` with
+    the latter's key including `u(x)`). This is totally fine. The BoundSymbol
+    is tied to a specific Function; once the Function gets out of scope, the
+    BoundSymbol will also become a garbage collector candidate.
+    """
+
+    def __new__(cls, *args, function=None, **kwargs):
+        obj = AbstractSymbol.__new__(cls, *args, **kwargs)
+        obj._function = function
+        return obj
+
+    @property
+    def function(self):
+        return self._function
+
+
 class Indexed(sympy.Indexed):
 
     # The two type flags have changed in upstream sympy as of version 1.1,
@@ -1180,8 +1240,16 @@ class Indexed(sympy.Indexed):
 
     is_Dimension = False
 
+    @memoized_meth
+    def __str__(self):
+        return super().__str__()
+
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
+
+    @cached_property
+    def indices(self):
+        return DimensionTuple(*super().indices, getters=self.function.dimensions)
 
     @property
     def function(self):
@@ -1202,7 +1270,11 @@ class Indexed(sympy.Indexed):
     @cached_property
     def free_symbols(self):
         # Make it cached, since it's relatively expensive and called often
-        return super(Indexed, self).free_symbols
+        ret = super(Indexed, self).free_symbols
+        # Get rid of the IndexedBase label this Indexed stems from
+        # as in Devito we can't have it floating around in Eq's
+        ret.discard(self.base.label)
+        return ret
 
     def compare(self, other):
         """

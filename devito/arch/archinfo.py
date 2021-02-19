@@ -11,10 +11,12 @@ import re
 from devito.logger import warning
 from devito.tools import all_equal, memoized_func
 
-__all__ = ['platform_registry',
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',
-           'ARM',
-           'POWER8', 'POWER9']
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info',
+           'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
+           'NvidiaDevice', 'AmdDevice',
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
+           'AMD', 'ARM', 'POWER8', 'POWER9',  # Other CPU architectures
+           'AMDGPUX', 'NVIDIAX']  # GPUs
 
 
 @memoized_func
@@ -32,7 +34,6 @@ def get_cpu_info():
 
     # Extract CPU flags and branch
     if lines:
-
         # The /proc/cpuinfo format doesn't follow a standard, and on some
         # more or less exotic combinations of OS and platform it might not
         # contain the information we look for, hence the proliferation of
@@ -40,7 +41,9 @@ def get_cpu_info():
 
         def get_cpu_flags():
             try:
-                flags = [i for i in lines if i.startswith('flags')][0]
+                # ARM Thunder X2 is using 'Features' instead of 'flags'
+                flags = [i for i in lines if (i.startswith('Features')
+                                              or i.startswith('flags'))][0]
                 return flags.split(':')[1].strip().split()
             except:
                 return None
@@ -60,16 +63,20 @@ def get_cpu_info():
             except:
                 pass
 
-            return None
+            try:
+                # Certain ARM CPUs, e.g. Marvell Thunder X2
+                return cpuinfo.get_cpu_info().get('arch').lower()
+            except:
+                return None
 
         cpu_info['flags'] = get_cpu_flags()
         cpu_info['brand'] = get_cpu_brand()
 
-    if not all(i in cpu_info for i in ('flags', 'brand')):
-        # Fallback
-        ci = cpuinfo.get_cpu_info()
-        cpu_info['flags'] = ci.get('flags')
-        cpu_info['brand'] = ci.get('brand')
+    if not cpu_info.get('flags'):
+        cpu_info['flags'] = cpuinfo.get_cpu_info().get('flags')
+
+    if not cpu_info.get('brand'):
+        cpu_info['brand'] = cpuinfo.get_cpu_info().get('brand')
 
     # Detect number of logical cores
     logical = psutil.cpu_count(logical=True)
@@ -84,6 +91,14 @@ def get_cpu_info():
     cpu_info['logical'] = logical
 
     # Detect number of physical cores
+    # Special case: in some ARM processors psutils fails to detect physical cores
+    # correctly so we use lscpu()
+    try:
+        if 'arm' in cpu_info['brand']:
+            cpu_info['physical'] = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
+            return cpu_info
+    except:
+        pass
     # TODO: on multi-socket systems + unix, can't use psutil due to
     # `https://github.com/giampaolo/psutil/issues/1558`
     mapper = {}
@@ -107,15 +122,13 @@ def get_cpu_info():
         # Fallback 1: it should now be fine to use psutil
         physical = psutil.cpu_count(logical=False)
         if not physical:
-            # Fallback 2: we might end up here on more exotic platforms such a Power8
-            # Hopefully we can rely on `lscpu`
+            # Fallback 2: we might end up here on more exotic platforms such as Power8
             try:
                 physical = lscpu()['Core(s) per socket'] * lscpu()['Socket(s)']
             except KeyError:
                 warning("Physical core count autodetection failed")
                 physical = 1
     cpu_info['physical'] = physical
-
     return cpu_info
 
 
@@ -127,7 +140,7 @@ def get_gpu_info():
     def filter_real_gpus(gpus):
         def is_real_gpu(gpu):
             return 'virtual' not in gpu['product'].lower()
-        return filter(is_real_gpu, gpus)
+        return list(filter(is_real_gpu, gpus))
 
     # The following functions of the form cmd_gpu_info(...) attempt obtaining GPU
     #   information using 'cmd'
@@ -205,7 +218,7 @@ def get_gpu_info():
 
     # Run homogeneity checks on a list of GPU, return GPU with count if homogeneous,
     #   otherwise None
-    def homogenise_gpus(gpus):
+    def homogenise_gpus(gpu_infos):
         if gpu_infos == []:
             warning('No graphics cards detected')
             return None
@@ -258,7 +271,9 @@ def lscpu():
     if output:
         lines = output.decode("utf-8").strip().split('\n')
         mapper = {}
-        for k, v in [tuple(i.split(':')) for i in lines]:
+        # Using split(':', 1) to avoid splitting lines where lscpu shows vulnerabilities
+        # on some CPUs: https://askubuntu.com/questions/1248273/lscpu-vulnerabilities
+        for k, v in [tuple(i.split(':', 1)) for i in lines]:
             try:
                 mapper[k] = int(v)
             except ValueError:

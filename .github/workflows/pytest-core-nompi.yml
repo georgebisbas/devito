@@ -12,7 +12,7 @@ on:
 
 jobs:
   pytest:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.name }}-${{ matrix.set }}
     runs-on: "${{ matrix.os }}"
 
     env:
@@ -21,7 +21,6 @@ jobs:
       DEVITO_BACKEND: "core"
       OMP_NUM_THREADS: 2
       PYTHON_VERSION: "${{ matrix.python-version }}"
-      TESTS: "tests/"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -39,6 +38,7 @@ jobs:
            pytest-osx-py37-clang-omp,
            pytest-docker-py36-gcc-omp
         ]
+        set: [base, adjoint]
         include:
         - name: pytest-ubuntu-py36-gcc49-omp
           python-version: 3.6
@@ -94,6 +94,16 @@ jobs:
           arch: "gcc"
           language: "openmp"
 
+        - set: base
+          test-set: 'not adjoint'
+
+        - set: adjoint
+          test-set: 'adjoint'
+
+        exclude:
+        - name: pytest-osx-py37-clang-omp
+          set: adjoint
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v1
@@ -108,17 +118,29 @@ jobs:
       if: matrix.name == 'pytest-docker-py36-gcc-omp'
       run: |
           docker build . --file docker/Dockerfile --tag devito_img
-          echo "::set-env name=RUN_CMD::docker run --rm --name testrun devito_img"
+
+    - name: Set run prefix
+      run: |
+          if [ "${{ matrix.name }}" == 'pytest-docker-py36-gcc-omp' ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+          else
+              echo "::set-output name=RUN_CMD::"
+          fi
+      id: set-run
 
     - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
 
-    - name: Reduce number of tests for OSX
-      if: runner.os == 'macOS'
+    - name: Set tests (reduced number for OSX)
       run : |
-        echo "::set-env name=TESTS::tests/test_operator.py"
+          if [ "${{ runner.os }}" == 'macOS' ]; then
+              echo "::set-output name=TESTS::tests/test_operator.py"
+          else
+              echo "::set-output name=TESTS::tests/"
+          fi
+      id: set-tests
 
     - name: Install dependencies
       if: matrix.name != 'pytest-docker-py36-gcc-omp'
@@ -128,7 +150,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        $RUN_CMD pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml $TESTS
+        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'pytest-docker-py36-gcc-omp'

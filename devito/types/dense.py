@@ -27,7 +27,7 @@ from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
-__all__ = ['Function', 'TimeFunction']
+__all__ = ['Function', 'TimeFunction', 'SubFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -277,8 +277,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *local* with_halo region shape.
         """
-        return tuple(j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
-                                                    self._padding))
+        return DimensionTuple(*[j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
+                                                               self._padding)],
+                              getters=self.dimensions)
 
     @cached_property
     def shape_global(self):
@@ -298,6 +299,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             size = self.grid.dimension_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
+
+    @property
+    def size_global(self):
+        """
+        The global number of elements this object is expected to store in memory.
+        Note that this would need to be combined with self.dtype to give the actual
+        size in bytes.
+        """
+        return reduce(mul, self.shape_global)
 
     _offset_inhalo = AbstractFunction._offset_halo
     _size_inhalo = AbstractFunction._size_halo
@@ -329,7 +339,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
-                    for i, j, k, l in zip(left, right, self._distributor.mycoords,
+                    left_dist = [i for i, d in zip(left, self.dimensions) if d
+                                 in self._distributor.dimensions]
+                    right_dist = [i for i, d in zip(right, self.dimensions) if d
+                                  in self._distributor.dimensions]
+                    for i, j, k, l in zip(left_dist, right_dist,
+                                          self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)
@@ -700,7 +715,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @memoized_meth
     def _C_get_field(self, region, dim, side=None):
         """Symbolic representation of a given data region."""
-        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_name)
+        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_symbol)
         if region is DOMAIN:
             offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
             size = ffp(self._C_field_domain_size, self._C_make_index(dim))
@@ -796,7 +811,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(key.dimensions, self.shape):
             args.update(i._arg_defaults(_min=0, size=s))
 
-        # Add MPI-related data structures
+        # Add value overrides associated with the Grid
         if self.grid is not None:
             args.update(self.grid._arg_defaults())
 
@@ -826,7 +841,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 for i, s in zip(self.dimensions, new.shape):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
-                # Add MPI-related data structures
+                # Add value overrides associated with the Grid
                 if self.grid is not None:
                     values.update(self.grid._arg_defaults())
         else:

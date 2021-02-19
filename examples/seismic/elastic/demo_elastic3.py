@@ -60,9 +60,8 @@ dt = (10. / np.sqrt(2.)) / 6.
 time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
 src = RickerSource(name='src', grid=grid, f0=0.01, time_range=time_range)
-#src.coordinates.data[:] = [int(nx/2), int(ny/2), int(nz/2)]
 src.coordinates.data[:] = [100 , 100 , 100]
-# src.show()
+
 
 # Now we create the velocity and pressure fields
 
@@ -103,13 +102,10 @@ op()
 configuration['autotuning']='off'
 
 # plot_image(v[0].data[0,:], cmap="seismic"); pause(1)
-# plot_image(v[1].data[0,:], cmap="seismic"); pause(1)
 # plot_image(tau[0].data[0,:], cmap="seismic"); pause(1)
-# plot_image(tau[1].data[0,:], cmap="seismic"); pause(1)
 # plot_image(tau[0].data[0,int(nx/2),:,:], cmap="seismic"); pause(1)
 # plot_image(tau[0,1].data[0,int(nx/2),:,:], cmap="seismic"); pause(1)
-# plot_image(tau[0,1].data[0,int(nx/2),:,:]); pause(1)
-# plot_image(tau[0].data[0,int(nx/2),:,:]); pause(1)
+
 
 # import pdb; pdb.set_trace()
 norm_v0 = norm(v[0])
@@ -150,7 +146,8 @@ print(norm(ftau[0]))
 print(norm(ftau[1]))
 print("===========")
 
-#Get the nonzero indices
+# Get the nonzero indices
+
 nzinds = np.nonzero(ftau[0].data[0])  # nzinds is a tuple
 assert len(nzinds) == len(shape)
 
@@ -174,7 +171,8 @@ assert(source_id.data[nzinds[0][len(nzinds[0])-1], nzinds[1][len(nzinds[0])-1], 
 assert(np.all(np.nonzero(source_id.data)) == np.all(np.nonzero(source_mask.data)))
 assert(np.all(np.nonzero(source_id.data)) == np.all(np.nonzero(ftau[0].data[0])))
 
-info("-At this point source_mask and source_id have been popoulated correctly-")
+info("At this point source_mask and source_id have been populated correctly")
+
 
 nnz_shape = (grid.shape[0], grid.shape[1])  # Change only 3rd dim
 
@@ -246,7 +244,8 @@ eqyb = Eq(yb_size, block_sizes[1])
 eqxb2 = Eq(x0_blk0_size, block_sizes[2])
 eqyb2 = Eq(y0_blk0_size, block_sizes[3])
 
-# ============================================================================
+# ===============================================
+
 
 # fdelmodc reference implementation
 u_v_sol = Eq(v_sol.forward, v_sol + dt*ro*div(tau_sol))
@@ -270,9 +269,9 @@ eq_fzz = Inc(tau_sol[8].forward[t+1, x, y, zind], myexpr_fzz, implicit_dims=(tim
 
 print("-----")
 op2 = Operator([eqxb, eqyb, eqxb2, eqyb2, eq0, eq1, u_v_sol, u_t_sol, eq_fxx, eq_fyy, eq_fzz])
-# op2 = Operator([eqxb, eqyb, eqxb2, eqyb2, eq0, eq1, u_v_sol, u_t_sol, eq_fxx, eq_fyy, eq_fzz])
 # print(op2.ccode)
-print("===Temporal blocking======================================")
+print("===Temporal blocking==========")
+
 op2()
 print("===========")
 
@@ -306,18 +305,18 @@ print("===========")
 # assert np.isclose(normuref, normusol, atol=1e-06)
 # import pdb; pdb.set_trace()
 
-
 #import pyvista as pv
 
-#cmap = plt.cm.get_cmap("viridis")
+# cmap = plt.cm.get_cmap("viridis")
 # Copy devito u data
 #values = v_sol[1].data[0, :, :, :]
 
-#vistagrid = pv.UniformGrid()
-#vistagrid.dimensions = np.array(values.shape) + 1
-#vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
-#vistagrid.spacing = (1, 1, 1)  # These are the cell sizes along each axis
-#vistagrid.cell_arrays["values"] = values.flatten(order="F")  # Flatten the array!
+# vistagrid = pv.UniformGrid()
+# vistagrid.dimensions = np.array(values.shape) + 1
+# vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
+# vistagrid.spacing = (1, 1, 1)  # These are the cell sizes along each axis
+# vistagrid.cell_arrays["values"] = values.flatten(order="F")  # Flatten the array!
+
 # vistagrid.plot(show_edges=True)
 # vistaslices = vistagrid.slice_orthogonal()
 # vistaslices.plot(cmap=cmap)
@@ -325,11 +324,12 @@ print("===========")
 
 # import pdb; pdb.set_trace()
 # Uncomment to plot a slice of the field
-#plt.imshow(usol.data[2, int(nx/2) ,:, :]); pause(1)
+# plt.imshow(usol.data[2, int(nx/2) ,:, :]); pause(1)
 
 if args.plotting:
-    plot_image(v[0].data[0,:,int(ny/2),:], cmap="seismic"); pause(1);
-    plot_image(v_sol[0].data[0,:,int(ny/2),:], cmap="seismic"); pause(1);
+    plot_image(v[0].data[0,:,int(ny/2),:], cmap="seismic"); pause(1)
+    plot_image(v_sol[0].data[0,:,int(ny/2),:], cmap="seismic"); pause(1)
+
 
     plot_image(v[1].data[0,:,:,int(nz/2)], cmap="seismic"); pause(1)
     plot_image(v_sol[1].data[0,:,:,int(nz/2)], cmap="seismic"); pause(1)
@@ -346,12 +346,10 @@ if args.plotting:
     plot_image(tau[2, 2].data[0, :, :, int(nz/2)], cmap="seismic"); pause(1)
     plot_image(tau_sol[2, 2].data[0, :, :, int(nz/2)], cmap="seismic"); pause(1)
 
-
-#plot_image(tau[0].data[0, :, :], cmap="seismic"); pause(1)
-#plot_image(tau[0,1].data[0, :, :], cmap="seismic"); pause(1)
-#plot_image(tau[0,1].data[0, :, :]); pause(1)
-#plot_image(tau[0].data[0, :, :]); pause(1)
-
+# plot_image(tau[0].data[0, :, :], cmap="seismic"); pause(1)
+# plot_image(tau[0,1].data[0, :, :], cmap="seismic"); pause(1)
+# plot_image(tau[0,1].data[0, :, :]); pause(1)
+# plot_image(tau[0].data[0, :, :]); pause(1)
 
 assert np.isclose(norm(tau[0]), norm(tau_sol[0]), atol=1e-06)
 assert np.isclose(norm(tau[3]), norm(tau_sol[3]), atol=1e-06)
