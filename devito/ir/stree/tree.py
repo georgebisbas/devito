@@ -27,6 +27,10 @@ class ScheduleTree(NodeMixin):
     def last(self):
         return self.children[-1] if self.children else None
 
+    @property
+    def __repr_render__(self):
+        return "<root>"
+
 
 class NodeSection(ScheduleTree):
 
