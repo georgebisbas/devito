@@ -341,6 +341,7 @@ class DAG(object):
             self.add_node(ind_node, True)
             self.add_node(dep_node, True)
         if ind_node not in self.graph or dep_node not in self.graph:
+            import pdb;pdb.set_trace()
             raise KeyError('one or more nodes do not exist in graph')
         self.graph[ind_node].add(dep_node)
         if label is not None:

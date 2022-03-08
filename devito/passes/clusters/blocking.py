@@ -6,7 +6,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
                                IterationSpace, Scope)
 from devito.symbolics import uxreplace, INT, xreplace_indices, evalrel, retrieve_indexed
-from devito.tools import UnboundedMultiTuple, as_tuple
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten
 from devito.types import RIncrDimension
 
 
@@ -214,7 +214,7 @@ class SynthesizeBlocking(Queue):
             return clusters
 
         # Create the block Dimensions (in total `self.levels` Dimensions)
-        base = self.sregistry.make_name(prefix=d.name)
+        # base = self.sregistry.make_name(prefix=d.name)
 
         if self.blk_size_gen:
             # If a new TILABLE nest, pull what would be the next par-tile entry
@@ -227,7 +227,7 @@ class SynthesizeBlocking(Queue):
             step = None
 
         # name = self.template % (d.name, self.nblocked[d], '%d')
-        block_dims = create_block_dims(base, d, step, self.levels, self.sregistry)
+        block_dims = create_block_dims(d, step, self.levels, self.sregistry)
 
         processed = []
         for c in clusters:
@@ -273,11 +273,12 @@ def preprocess(clusters, options):
     return processed
 
 
-def create_block_dims(base, d, step, levels, sregistry, **kwargs):
+def create_block_dims(d, step, levels, sregistry, **kwargs):
     """
     Create the block Dimensions (in total `self.levels` Dimensions)
     """
     sf = kwargs.pop('sf', 1)
+    base = sregistry.make_name(prefix=d.name)
     name = sregistry.make_name(prefix="%s_blk" % base)
 
     bd = RIncrDimension(name, d, d.symbolic_min, d.symbolic_max, step)
@@ -319,8 +320,11 @@ def decompose(ispace, d, block_dims):
 
     for r in ispace.intervals.relations:
         relations.append(tuple(block_dims[0] if
-                         (i is d and i._depth > block_dims[0]._depth)
-                         else i for i in r))
+                        (i is d and i._depth > block_dims[0]._depth)
+                        else i for i in r))
+
+    # for r in ispace.intervals.relations:
+    #     relations.append(tuple(block_dims[0] if i is d else i for i in r))
 
     import pdb;pdb.set_trace()
     # Add more relations
@@ -345,7 +349,7 @@ def decompose(ispace, d, block_dims):
             for bd in block_dims:
                 relations.append((i.dim, bd))
 
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
 
     intervals = IntervalGroup(intervals, relations=relations)
 
@@ -376,8 +380,9 @@ def skewing(clusters, options):
     """
 
     clusters = Skewing(options).process(clusters)
-    clusters = RelaxSkewed().process(clusters)
-
+    # import pdb;pdb.set_trace()
+    # clusters = RelaxSkewed().process(clusters)
+    # import pdb;pdb.set_trace()
     return clusters
 
 
@@ -506,14 +511,14 @@ class TBlocking(Queue):
         d = prefix[-1].dim
 
         # Create the block Dimensions (in total `self.levels` Dimensions)
-        base = self.sregistry.make_name(prefix=d.name)
+        # base = self.sregistry.make_name(prefix=d.name)
         processed = []
 
         for c in clusters:
             sf = get_skewing_factor(c)
             if d.is_Time:
                 # name = self.template % (d.name, self.nblocked[d], '%d')
-                block_dims = create_block_dims(base, d, 1, self.levels, self.sregistry,
+                block_dims = create_block_dims(d, 1, self.levels, self.sregistry,
                                                sf=sf)
                 # block_dims = create_block_dims(name, d, 1, sf=sf)
                 ispace = decompose(c.ispace, d, block_dims)
@@ -559,6 +564,9 @@ class RelaxSkewed(Queue):
     def __init__(self):
         super().__init__()
 
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
+
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -570,19 +578,21 @@ class RelaxSkewed(Queue):
             return clusters
 
         processed = []
+        # import pdb;pdb.set_trace()
         for c in clusters:
             skew_dims = [i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]]
 
             if len(skew_dims) == 1:
-                processed.append(c)
-                continue
+                return clusters
+                # processed.append(c)
+                # continue
 
             family_dims = [j.dim for j in c.ispace if j.dim.root is d.root]
-
             # IMPORTANT: we only process the head of the family in this Queue
             if d is not family_dims[0]:
-                processed.append(c)
-                continue
+                return clusters
+                # processed.append(c)
+                # continue
 
             sf = get_skewing_factor(c)
             skew_dim = skew_dims[-1]
@@ -599,7 +609,7 @@ class RelaxSkewed(Queue):
                         mapper.update({i.dim: sd})
                     elif i.dim._depth == 2:
                         rmin = evalrel(max, [i.dim.symbolic_min,
-                                       i.dim.root.symbolic_min + skew_dim])
+                                             i.dim.root.symbolic_min + skew_dim])
                         rmax = i.dim.symbolic_rmax.xreplace({i.dim.root.symbolic_max:
                                                             i.dim.root.symbolic_max +
                                                             skew_dim})
@@ -614,24 +624,29 @@ class RelaxSkewed(Queue):
                         mapper.update({i.dim: sd3})
                         sd2 = sd3
                     else:
+                        # pass
                         intervals.append(i)
                 else:
+                    # pass
                     intervals.append(i)
 
+            # import pdb;pdb.set_trace()
             # After rebase relations are now empty , to fix
             # Update `relations` with the newly created `Dimension`s
             relations = []
             for r in c.ispace.relations:
                 if any(f in r for f in family_dims) and mapper:
+                    # import pdb;pdb.set_trace()
                     newr = as_tuple(j.xreplace(mapper) for j in r)
                     relations.append(newr)
                 else:
+                    # pass
                     relations.append(r)
 
             # Sanity check
             assert len(relations) == len(c.ispace.relations)
             # Build new intervals
-            import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
             intervals = IntervalGroup(intervals, relations=relations)
 
             # Update `sub_iterators`, `directions`, `properties`, `expressions`
@@ -652,6 +667,7 @@ class RelaxSkewed(Queue):
             ispace = IterationSpace(intervals, sub_iterators, directions)
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                        properties=properties))
+        import pdb;pdb.set_trace()
 
         return processed
 
