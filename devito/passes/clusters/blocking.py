@@ -6,7 +6,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
                                IterationSpace, Scope)
 from devito.symbolics import uxreplace, INT, xreplace_indices, evalrel, retrieve_indexed
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten, as_list
 from devito.types import RIncrDimension
 
 
@@ -49,9 +49,14 @@ def blocking(clusters, sregistry, options):
     clusters = AnalyzeSkewing().process(clusters)
 
     if options['blocklevels'] > 0:
-        if options['blocktime'] and options['skewing']:
-            clusters = TBlocking(sregistry, options).process(clusters)
         clusters = SynthesizeBlocking(sregistry, options).process(clusters)
+        from devito.tools import as_list
+        mylist = as_list(clusters[0].ispace.relations)
+        mylist1 = sum(mylist, ())
+        unlist = set(mylist1)
+        unlist1 = as_list(unlist)
+        print(unlist)
+        import pdb;pdb.set_trace()
 
     return clusters
 
@@ -318,15 +323,15 @@ def decompose(ispace, d, block_dims):
     # and `(xbb, xb, xi)`
     relations = [tuple(block_dims)]
 
-    for r in ispace.intervals.relations:
-        relations.append(tuple(block_dims[0] if
-                        (i is d and i._depth > block_dims[0]._depth)
-                        else i for i in r))
-
-    # for r in ispace.intervals.relations:
-    #     relations.append(tuple(block_dims[0] if i is d else i for i in r))
-
     import pdb;pdb.set_trace()
+    # for r in ispace.intervals.relations:
+    #     relations.append(tuple(block_dims[0] if
+    #                     (i is d and i._depth > block_dims[0]._depth)
+    #                     else i for i in r))
+
+    for r in ispace.intervals.relations:
+        relations.append(tuple(block_dims[0] if i is d else i for i in r))
+
     # Add more relations
     for n, i in enumerate(ispace):
         if i.dim is d:
@@ -336,7 +341,7 @@ def decompose(ispace, d, block_dims):
             # For example, we want `(t, xbb, ybb, xb, yb, x, y)`, rather than say
             # `(t, xbb, xb, x, ybb, ...)`
             for bd in block_dims:
-                if i.dim._depth > bd._depth:
+                if i.dim._depth >= bd._depth:
                     relations.append((bd, i.dim))
                 else:
                     relations.append((i.dim, bd))
@@ -362,10 +367,12 @@ def decompose(ispace, d, block_dims):
     directions.pop(d)
     directions.update({bd: ispace.directions[d] for bd in block_dims})
 
-    return IterationSpace(intervals, sub_iterators, directions)
+    ispace2 = IterationSpace(intervals, sub_iterators, directions)
+    import pdb;pdb.set_trace()
+    return ispace2
 
 
-def skewing(clusters, options):
+def skewing(clusters, sregistry, options):
     """
     This pass helps to skew accesses and loop bounds as well as perform loop interchange
     towards wavefront temporal blocking
@@ -379,16 +386,11 @@ def skewing(clusters, options):
            innermost loop.
     """
 
+    if options['blocklevels'] > 0:
+        if options['blocktime'] and options['skewing']:
+            clusters = TBlocking(sregistry, options).process(clusters)
+
     clusters = Skewing(options).process(clusters)
-    import pdb;pdb.set_trace()
-
-    from devito.tools import as_list
-    mylist = as_list(clusters[0].ispace.relations)
-    mylist1 = sum(mylist, ())
-    unlist = set(mylist1)
-    unlist1 = as_list(unlist)
-    print(unlist)
-
     clusters = RelaxSkewed().process(clusters)
     # import pdb;pdb.set_trace()
     return clusters
@@ -746,3 +748,12 @@ class RelaxBlocking(Queue):
                 processed.append(c)
 
         return processed
+
+
+def unique_rel_elms(ispace):
+
+    mylist = as_list(ispace.relations)
+    mylist1 = sum(mylist, ())
+    unlist = set(mylist1)
+    unlist1 = as_list(unlist)
+    return unlist1
