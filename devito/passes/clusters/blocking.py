@@ -380,8 +380,16 @@ def skewing(clusters, options):
     """
 
     clusters = Skewing(options).process(clusters)
-    # import pdb;pdb.set_trace()
-    # clusters = RelaxSkewed().process(clusters)
+    import pdb;pdb.set_trace()
+
+    from devito.tools import as_list
+    mylist = as_list(clusters[0].ispace.relations)
+    mylist1 = sum(mylist, ())
+    unlist = set(mylist1)
+    unlist1 = as_list(unlist)
+    print(unlist)
+
+    clusters = RelaxSkewed().process(clusters)
     # import pdb;pdb.set_trace()
     return clusters
 
@@ -583,16 +591,18 @@ class RelaxSkewed(Queue):
             skew_dims = [i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]]
 
             if len(skew_dims) == 1:
-                return clusters
-                # processed.append(c)
-                # continue
+                # return clusters
+                import pdb;pdb.set_trace()
+                processed.append(c)
+                continue
 
             family_dims = [j.dim for j in c.ispace if j.dim.root is d.root]
             # IMPORTANT: we only process the head of the family in this Queue
             if d is not family_dims[0]:
-                return clusters
-                # processed.append(c)
-                # continue
+                # return clusters
+                processed.append(c)
+                import pdb;pdb.set_trace()
+                continue
 
             sf = get_skewing_factor(c)
             skew_dim = skew_dims[-1]
@@ -630,7 +640,7 @@ class RelaxSkewed(Queue):
                     # pass
                     intervals.append(i)
 
-            # import pdb;pdb.set_trace()
+            import pdb;pdb.set_trace()
             # After rebase relations are now empty , to fix
             # Update `relations` with the newly created `Dimension`s
             relations = []
@@ -642,6 +652,8 @@ class RelaxSkewed(Queue):
                 else:
                     # pass
                     relations.append(r)
+
+            import pdb;pdb.set_trace()
 
             # Sanity check
             assert len(relations) == len(c.ispace.relations)
@@ -689,3 +701,48 @@ def get_skewing_factor(cluster):
     except AttributeError:
         sf = 1
     return (sf if sf else 1)
+
+
+class RelaxBlocking(Queue):
+
+    def __init__(self):
+        super().__init__()
+
+    def process(self, clusters):
+        return self._process_fatd(clusters, 1)
+
+    def _make_key_hook(self, cluster, level):
+        return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
+
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
+        if not any(TILABLE in c.properties[d] for c in clusters):
+            return clusters
+
+        # name = self.template % (d.name, self.nblocked[d], '%d')
+        block_dims = create_block_dims(d, step, self.levels, self.sregistry)
+
+        processed = []
+        for c in clusters:
+            if TILABLE in c.properties[d]:
+                ispace = decompose(c.ispace, d, block_dims)
+
+                # Use the innermost IncrDimension in place of `d`
+                exprs = [uxreplace(e, {d: block_dims[-1]}) for e in c.exprs]
+
+                # The new Cluster properties
+                # TILABLE property is dropped after the blocking.
+                properties = dict(c.properties)
+                properties.pop(d)
+                properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
+
+                processed.append(c.rebuild(exprs=exprs, ispace=ispace,
+                                           properties=properties))
+            else:
+                processed.append(c)
+
+        return processed
