@@ -6,8 +6,7 @@ from cached_property import cached_property
 from sympy import Expr, Number
 
 from devito.parameters import configuration
-from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
-                          dtype_to_ctype, dtypes_vector_mapper)
+from devito.tools import as_tuple, dtype_to_ctype
 from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
@@ -231,7 +230,7 @@ class ArrayMapped(Array):
     _C_field_dmap = 'dmap'
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [(_C_field_data, c_restrict_void_p),
+                            {'_fields_': [(_C_field_data, c_void_p),
                                           (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p)]}))
 

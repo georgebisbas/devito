@@ -18,7 +18,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
+from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
@@ -653,7 +653,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     _C_field_dmap = 'dmap'
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [(_C_field_data, c_restrict_void_p),
+                            {'_fields_': [(_C_field_data, c_void_p),
                                           (_C_field_size, POINTER(c_ulong)),
                                           (_C_field_nopad_size, POINTER(c_ulong)),
                                           (_C_field_domain_size, POINTER(c_ulong)),
@@ -668,7 +668,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         an Operator.
         """
         dataobj = byref(self._C_ctype._type_())
-        dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
+        dataobj._obj.data = data.ctypes.data_as(c_void_p)
         dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
