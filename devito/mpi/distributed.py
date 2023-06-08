@@ -634,15 +634,16 @@ class CustomTopology(tuple):
             alloc_procs = np.prod([i for i in items if i != '*'])
             rem_procs = int(input_comm.size // alloc_procs)
 
-            # List of all factors of rem_procs in decreasing order
-            factors = factorint(rem_procs)
-            vals = [k for (k, v) in factors.items() for _ in range(v)][::-1]
-
-            # Split in number of stars
-            split = np.array_split(vals, nstars)
-
-            # Reduce
-            star_vals = [int(np.prod(s)) for s in split]
+            # Start by using the max prime factor at the first starred position,
+            # then iteratively decompose as evenly as possible until decomposing
+            # to the number of `rem_procs`
+            star_vals = [1] * len(items)
+            star_i = 0
+            while rem_procs > 1:
+                prime_factors = primefactors(rem_procs)
+                rem_procs //= max(prime_factors)
+                star_vals[star_i] *= max(prime_factors)
+                star_i = (star_i + 1) % nstars
 
             # Apply computed star values to the processed
             for index, value in zip(star_pos, star_vals):
