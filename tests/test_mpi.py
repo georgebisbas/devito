@@ -17,7 +17,8 @@ from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall, Compute
 from examples.seismic.acoustic import acoustic_setup
 
 
-class TestDistributor:
+
+class TestDistributor(object):
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_partitioning(self, mode):
@@ -218,8 +219,12 @@ class TestDistributor:
         (256, ('*', '*', 2), (16, 8, 2)),
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
+<<<<<<< HEAD
     @pytest.mark.parallel(mode=[2])
     def test_custom_topology_v2(self, comm_size, topology, dist_topology, mode):
+=======
+    def test_custom_topology_3d_dummy(self, comm_size, topology, dist_topology):
+>>>>>>> 7a724e1ac (mpi: Simplify Custom domain decomposition)
         dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
