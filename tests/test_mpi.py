@@ -13,11 +13,7 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
-                                 ComputeCall)
-from devito.mpi.distributed import CustomTopology
-from devito.tools import Bunch
-
+from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall, ComputeCall
 from examples.seismic.acoustic import acoustic_setup
 
 
