@@ -12,7 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
                            Expression, ExpressionBundle, AugmentedExpression,
                            Iteration, List, Prodder, Return, make_efunc, FindNodes,
-                           Transformer, ElementalCall)
+                           Transformer, derive_parameters, ElementalCall)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
@@ -655,8 +655,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc('compute%d' % key, hs.body, hs.arguments,
-                              efunc_type=ComputeFunction)
+            return make_compute_func('compute%d' % key, hs.body, hs.arguments)
 
     def _call_compute(self, hs, compute, *args):
         if compute is None:
@@ -961,8 +960,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc('compute%d' % key, iet, hs.arguments,
-                              efunc_type=ComputeFunction)
+            return make_compute_func('compute%d' % key, iet, hs.arguments)
 
     def _make_poke(self, hs, key, msgs):
         lflag = Symbol(name='lflag')
@@ -1035,6 +1033,23 @@ class HaloUpdate(MPICallable):
         super(HaloUpdate, self).__init__(name, body, parameters)
 
 
+class ComputeFunction(ElementalFunction):
+
+    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
+                  is_indirect=False):
+        return ComputeCall(self.name, list(self.parameters), dict(self._mapper),
+                           dynamic_args_mapper, incr, retobj, is_indirect)
+
+
+def make_compute_func(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
+    """
+    Shortcut to create a ComputeFunction.
+    """
+    return ComputeFunction(name, iet, retval=retval,
+                           parameters=derive_parameters(iet), prefix=prefix,
+                           dynamic_parameters=dynamic_parameters)
+
+
 class Remainder(ElementalFunction):
     pass
 
@@ -1076,6 +1091,10 @@ class HaloUpdateCall(MPICall):
 
 
 class HaloWaitCall(MPICall):
+    pass
+
+
+class ComputeCall(ElementalCall):
     pass
 
 
