@@ -27,7 +27,7 @@ class OmpRegion(ParallelBlock):
     @classmethod
     def _make_header(cls, nthreads, private=None):
         private = ('private(%s)' % ','.join(private)) if private else ''
-        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name + ' + 1', private))
 
 
 class OmpIteration(PragmaIteration):
@@ -93,7 +93,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder, arguments=None):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 0)
+        condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 16)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
