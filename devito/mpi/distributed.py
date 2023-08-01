@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
 from math import ceil, pow
-from sympy import factorint
+from sympy import factorint, primefactors
 
 import atexit
 
