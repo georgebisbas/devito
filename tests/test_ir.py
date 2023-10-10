@@ -724,7 +724,6 @@ class TestDependenceAnalysis(object):
         op.apply()
 
         assert np.all(f.data == list(range(10)))
-        import pdb;pdb.set_trace()
 
     def test_ffp(self):
         grid = Grid(shape=(4, 4))
