@@ -175,11 +175,12 @@ class Data(np.ndarray):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
         def wrapper(data, *args, **kwargs):
+            
             glb_idx = args[0]
             is_gather = isinstance(kwargs.get('gather_rank', None), int)
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
-            elif len(args) > 1 and isinstance(args[1], Data) \
+            elif len(args) > 1 and (isinstance(args[1], Data) or args[1] is None) \
                     and args[1]._is_mpi_distributed:
                 comm_type = index_by_index
             elif data._is_mpi_distributed:
@@ -329,6 +330,7 @@ class Data(np.ndarray):
     @_check_idx
     def __setitem__(self, glb_idx, val, comm_type):
         loc_idx = self._index_glb_to_loc(glb_idx)
+        import pdb;pdb.set_trace()
         if loc_idx is NONLOCAL:
             # no-op
             return
@@ -365,7 +367,7 @@ class Data(np.ndarray):
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
-        elif isinstance(val, np.ndarray):
+        elif isinstance(val, np.ndarray):    
             if self._is_distributed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 glb_idx = self._normalize_index(glb_idx)
