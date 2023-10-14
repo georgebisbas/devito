@@ -167,11 +167,12 @@ class Data(np.ndarray):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
         def wrapper(data, *args, **kwargs):
+            
             glb_idx = args[0]
             is_gather = isinstance(kwargs.get('gather_rank', None), int)
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
-            elif len(args) > 1 and isinstance(args[1], Data) \
+            elif len(args) > 1 and (isinstance(args[1], Data) or args[1] is None) \
                     and args[1]._is_mpi_distributed:
                 comm_type = index_by_index
             elif data._is_mpi_distributed:
@@ -244,6 +245,7 @@ class Data(np.ndarray):
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
             local_val = super(Data, self).__getitem__(data_idx)
+            import pdb;pdb.set_trace()
             self._index_stash = None
 
             comm = self._distributor.comm
@@ -321,16 +323,19 @@ class Data(np.ndarray):
     @_check_idx
     def __setitem__(self, glb_idx, val, comm_type):
         loc_idx = self._index_glb_to_loc(glb_idx)
+        import pdb;pdb.set_trace()
         if loc_idx is NONLOCAL:
             # no-op
             return
         elif np.isscalar(val):
             if index_is_basic(loc_idx):
                 # Won't go through `__getitem__` as it's basic indexing mode,
-                # so we should just propage `loc_idx`
+                # so we should just propagate `loc_idx`
                 super(Data, self).__setitem__(loc_idx, val)
             else:
                 super(Data, self).__setitem__(glb_idx, val)
+        # elif val is None:
+            
         elif isinstance(val, Data) and val._is_distributed:
             if comm_type is index_by_index:
                 glb_idx, val = self._process_args(glb_idx, val)
@@ -357,7 +362,7 @@ class Data(np.ndarray):
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
-        elif isinstance(val, np.ndarray):
+        elif isinstance(val, np.ndarray):    
             if self._is_distributed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 glb_idx = self._normalize_index(glb_idx)
