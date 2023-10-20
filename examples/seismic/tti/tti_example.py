@@ -37,6 +37,9 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # Define receiver geometry (spread across `x, y`` just below surface)
     rec, u, v, summary = solver.forward(save=save, autotune=autotune)
 
+    print("Norm is: ", norm(u))
+    print("rec1 norm is: ", norm(rec))
+
     if preset in ['constant-tti', 'constant-tti-noazimuth']:
         # With new physical parameters as scalars (slightly higher from original values)
         vp = 2.

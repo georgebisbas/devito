@@ -33,6 +33,10 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
     rec, p, v, summary = solver.forward(autotune=autotune)
 
+    # import pdb;pdb.set_trace()
+    print("Norm is: ", norm(p))
+    print("rec1 norm is: ", norm(rec))
+
     return (summary.gflopss, summary.oi, summary.timings, [rec, p, v])
 
 
