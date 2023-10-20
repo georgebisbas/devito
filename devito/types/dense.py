@@ -1108,7 +1108,11 @@ class Function(DiscreteFunction):
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                halo = (int(space_order/2), int(space_order/2))
+                # MPI playground, reduce to half so>4
+                if space_order <= 3:
+                    halo = (space_order, space_order)
+                else:
+                    halo = (int(space_order/2), int(space_order/2))
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 _, left_points, right_points = space_order
                 halo = (left_points, right_points)
