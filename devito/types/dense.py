@@ -1109,7 +1109,7 @@ class Function(DiscreteFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 # MPI playground, reduce to half so>4
-                if space_order <= 3:
+                if space_order <= 30:
                     halo = (space_order, space_order)
                 else:
                     halo = (int(space_order/2), int(space_order/2))

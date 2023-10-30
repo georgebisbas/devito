@@ -9,6 +9,8 @@ import sympy
 from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
+from devito.ir.support.utils import minmax_index
+
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
                           frozendict, is_integer)
@@ -93,6 +95,7 @@ class HaloScheme(object):
             rtk, _ = i.thickness.right
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
+        self._exprs = exprs
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
@@ -127,6 +130,7 @@ class HaloScheme(object):
 
         fmapper = {}
         honored = {}
+
         for i in as_tuple(halo_schemes):
             # Compute the `fmapper `union`
             for k, v in i.fmapper.items():
@@ -295,6 +299,14 @@ class HaloScheme(object):
             mapper = {}
             for d, s in item:
                 osl, osr = self.owned_size[d]
+
+                # Her we have osl/osr which is some redundant size
+                osll = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
+                osrr = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
+                # print(osll, osrr)
+
+                osl = osl - osll
+                osr = osr - osrr
 
                 # Handle SubDomain/SubDimensions to-honor offsets
                 nl = Max(0, *[i for i, _ in self.honored.get(d, [])])

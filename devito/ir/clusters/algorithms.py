@@ -396,10 +396,13 @@ class Communications(Queue):
                not d._defines & hs.distributed_aindices:
                 continue
 
-            points = set()
-            for f in hs.fmapper:
-                for a in c.scope.getreads(f):
-                    points.add(a.access)
+            if not halo_scheme.is_void and \
+               c.properties.is_parallel_relaxed(d):
+                points = set()
+
+                for f in halo_scheme.fmapper:
+                    for a in c.scope.getreads(f):
+                        points.add(a.access)
 
             # We also add all written symbols to ultimately create mock WARs
             # with `c`, which will prevent the newly created HaloTouch to ever
