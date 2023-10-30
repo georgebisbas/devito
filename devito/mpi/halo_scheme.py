@@ -293,6 +293,9 @@ class HaloScheme(object):
         """
         items = [((d, CENTER), (d, LEFT), (d, RIGHT)) for d in self.dimensions]
 
+        #if self.dimensions:
+        #    import pdb;pdb.set_trace()
+
         processed = []
         for item in product(*items):
             where = []
@@ -300,13 +303,20 @@ class HaloScheme(object):
             for d, s in item:
                 osl, osr = self.owned_size[d]
 
-                # Her we have osl/osr which is some redundant size
-                osll = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
-                osrr = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
-                # print(osll, osrr)
+                # Here we have osl/osr which is some redundant size
+                if 1:
+                    try:
+                        osll = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
+                        osrr = max([minmax_index(e, d)[1] - d] for e in self._exprs)[0]
+                    except:
+                        pass
 
-                osl = osl - osll
-                osr = osr - osrr
+                    try:
+                        osl = min(osl, osll)
+                        osr = min(osrr-osr, osr)
+                    except:
+                        # import pdb;pdb.set_trace()
+                        pass
 
                 # Handle SubDomain/SubDimensions to-honor offsets
                 nl = Max(0, *[i for i, _ in self.honored.get(d, [])])

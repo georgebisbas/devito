@@ -247,6 +247,23 @@ class TestMetaData(object):
         assert u._offset_domain == (0, 0, 0)
         assert u._offset_halo == u._offset_owned == ((0, 4), (0, 4), (0, 4))
 
+    def test_halo_wo_padding(self):
+        grid = Grid(shape=(4, 4, 4))
+        u = Function(name='u', grid=grid, space_order=2, padding=0)
+
+        assert u.shape == (4, 4, 4)
+        assert u._shape_with_inhalo == (8, 8, 8)
+        assert u.shape_allocated == (8, 8, 8)
+        assert u.shape_with_halo == (8, 8, 8)
+        assert u._shape_with_inhalo == (8, 8, 8)
+        assert u._size_halo == ((2, 2), (2, 2), (2, 2))
+        assert u._size_owned == ((2, 2), (2, 2), (2, 2))
+        assert u._size_padding == ((0, 0), (0, 0), (0, 0))
+
+        assert u._offset_domain == (2, 2, 2)
+        assert u._offset_halo == ((0, 6), (0, 6), (0, 6))
+        assert u._offset_owned == ((2, 4), (2, 4), (2, 4))
+
     def test_w_halo_wo_padding(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2, padding=0)
@@ -506,6 +523,24 @@ class TestDataDistributed(object):
         else:
             assert np.all(u.data_ro_with_halo._local[:2, :2] == myrank)
             assert np.all(u.data_ro_with_halo._local[2] == 0.)
+
+    @pytest.mark.parallel(mode=2)
+    def test_redundant_halo(self):
+        grid = Grid(shape=(4, 4, 4))
+        u = Function(name='u', grid=grid, space_order=2)
+
+        assert u.shape == (2, 4, 4)
+        assert u._shape_with_inhalo == (6, 8, 8)
+        assert u.shape_allocated == (6, 8, 8)
+        assert u.shape_with_halo == (4, 8, 8)
+        assert u._shape_with_inhalo == (6, 8, 8)
+        assert u._size_halo == ((2, 2), (2, 2), (2, 2))
+        assert u._size_owned == ((2, 2), (2, 2), (2, 2))
+        assert u._size_padding == ((0, 0), (0, 0), (0, 0))
+
+        assert u._offset_domain == (2, 2, 2)
+        assert u._offset_halo == ((0, 4), (0, 6), (0, 6))
+        assert u._offset_owned == ((2, 2), (2, 4), (2, 4))
 
     @pytest.mark.parallel(mode=4)
     def test_trivial_insertion(self):

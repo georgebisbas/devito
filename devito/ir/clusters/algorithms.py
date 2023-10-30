@@ -396,6 +396,10 @@ class Communications(Queue):
                not d._defines & hs.distributed_aindices:
                 continue
 
+            if halo_scheme.omapper.owned:
+                # import pdb;pdb.set_trace()
+                print(halo_scheme.omapper)
+
             if not halo_scheme.is_void and \
                c.properties.is_parallel_relaxed(d):
                 points = set()
