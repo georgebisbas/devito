@@ -87,6 +87,7 @@ class Cluster(object):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-compatible synchronization operations")
 
+        # import pdb;pdb.set_trace()
         halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
 
         return Cluster(exprs, ispace, guards, properties, syncs, halo_scheme)

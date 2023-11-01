@@ -303,27 +303,35 @@ class HaloScheme(object):
             for d, s in item:
                 osl, osr = self.owned_size[d]
 
+                # Handle SubDomain/SubDimensions to-honor offsets
+                nl = Max(0, *[i for i, _ in self.honored.get(d, [])])
+                nr = Max(0, *[i for _, i in self.honored.get(d, [])])
+
                 # Here we have osl/osr which is some redundant size
                 if 1:
+                    # print(self._exprs)
                     try:
                         osll = max([minmax_index(e, d)[0] - d] for e in self._exprs)[0]
                         osrr = max([minmax_index(e, d)[1] - d] for e in self._exprs)[0]
+                        # import pdb;pdb.set_trace()
                     except:
+                        osll = 1
+                        osrr = 3
+                        # import pdb;pdb.set_trace()
                         pass
 
                     try:
                         osl = min(osl, osll)
                         osr = min(osrr-osr, osr)
+                        # import pdb;pdb.set_trace()
                     except:
                         # import pdb;pdb.set_trace()
                         pass
-
-                # Handle SubDomain/SubDimensions to-honor offsets
-                nl = Max(0, *[i for i, _ in self.honored.get(d, [])])
-                nr = Max(0, *[i for _, i in self.honored.get(d, [])])
-
+                    
+                print(osl, osr)
                 if s is CENTER:
                     where.append((d, CORE, s))
+                    # import pdb;pdb.set_trace()
                     mapper[d] = (d.symbolic_min + osl,
                                  d.symbolic_max - osr)
                     if nl != 0:
@@ -332,22 +340,31 @@ class HaloScheme(object):
                         mapper[nr] = (Max(nr - osr, 0),)
                 else:
                     where.append((d, OWNED, s))
+
                     if s is LEFT:
-                        mapper[d] = (d.symbolic_min,
+                        mapper[d] = (d.symbolic_min + osl,
                                      Min(d.symbolic_min + osl - 1, d.symbolic_max - nr))
                         if nl != 0:
                             mapper[nl] = (nl,)
                             mapper[nr] = (0,)
                     else:
                         mapper[d] = (Max(d.symbolic_max - osr + 1, d.symbolic_min + nl),
-                                     d.symbolic_max)
+                                     d.symbolic_max - osr)
                         if nr != 0:
                             mapper[nl] = (0,)
                             mapper[nr] = (nr,)
+
             processed.append((tuple(where), frozendict(mapper)))
 
+        # if processed:
+        #     import pdb;pdb.set_trace()
+
         _, core = processed.pop(0)
+
         owned = processed
+
+        #if owned:
+        #    import pdb;pdb.set_trace()
 
         return OMapper(core, owned)
 

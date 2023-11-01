@@ -676,6 +676,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+        # import pdb;pdb.set_trace()
 
         # Fields used only within C-land
         dataobj._obj.dmap = c_void_p(0)
@@ -1109,7 +1110,7 @@ class Function(DiscreteFunction):
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
                 # MPI playground, reduce to half so>4
-                if space_order <= 30:
+                if space_order <= 20:
                     halo = (space_order, space_order)
                 else:
                     halo = (int(space_order/2), int(space_order/2))

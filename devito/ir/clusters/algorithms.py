@@ -11,7 +11,9 @@ from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.logger import warning
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
+
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, timed_pass, toposort)
@@ -396,30 +398,47 @@ class Communications(Queue):
                not d._defines & hs.distributed_aindices:
                 continue
 
-            if halo_scheme.omapper.owned:
-                # import pdb;pdb.set_trace()
-                print(halo_scheme.omapper)
-
             if not halo_scheme.is_void and \
                c.properties.is_parallel_relaxed(d):
                 points = set()
 
                 for f in halo_scheme.fmapper:
+                    import pdb;pdb.set_trace()
                     for a in c.scope.getreads(f):
                         points.add(a.access)
 
-            # We also add all written symbols to ultimately create mock WARs
-            # with `c`, which will prevent the newly created HaloTouch to ever
-            # be rescheduled after `c` upon topological sorting
-            points.update(a.access for a in c.scope.accesses if a.is_write)
+                
+
+                #from devito.ir.support.utils import minmax_index
+
+                #try:
+                #    read = min(minmax_index(i.lhs, d).m for i in c.exprs)
+                #    lower = min(minmax_index(i.rhs, d).m for i in c.exprs)
+                #    upper = max(minmax_index(i.rhs, d).M for i in c.exprs)
+                #    rofs = upper - read
+                #    lofs = read - lower
+                #    req_size = {d: (lofs, rofs)}
+                #    if req_size[d] < halo_scheme.owned_size[d]:
+                #        import pdb;pdb.set_trace()
+                #        print(d)
+                #        warning("Allocated/Communicated halo is more than required")
+                #except:
+                #    pass
+
+
+                # We also add all written symbols to ultimately create mock WARs
+                # with `c`, which will prevent the newly created HaloTouch to ever
+                # be rescheduled after `c` upon topological sorting
+                points.update(a.access for a in c.scope.accesses if a.is_write)
 
             # Sort for determinism
             # NOTE: not sorting might impact code generation. The order of
             # the args is important because that's what search functions honor!
             points = sorted(points, key=str)
 
-            # Construct the HaloTouch Cluster
-            expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
+                
+                
+                rhs = HaloTouch(*points, halo_scheme=halo_scheme)
 
             key = lambda i: i in prefix[:-1] or i in hs.loc_indices
             ispace = c.ispace.project(key)

@@ -450,6 +450,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 else:
                     meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
                     ofs.append(meta.offset)
+                    import pdb;pdb.set_trace()
                     sizes.append(meta.size)
             mapper[(d0, side, region)] = (sizes, ofs)
 

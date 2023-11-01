@@ -646,6 +646,7 @@ class Operator(Callable):
 
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
+        # import pdb;pdb.set_trace()
         for p in self.parameters:
             try:
                 subfuncs = (args[getattr(p, s).name] for s in p._sub_functions)
@@ -833,6 +834,7 @@ class Operator(Callable):
         >>> summary = op.apply(time_M=10)
         """
         # Build the arguments list to invoke the kernel function
+        # import pdb;pdb.set_trace()
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
 
