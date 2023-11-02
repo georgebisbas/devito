@@ -121,8 +121,9 @@ def lower_exprs(expressions, **kwargs):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(lower_exprs(a) + o) for a, o in
-                       zip(i.indices, f._size_nodomain.left)]
+            indices = []
+            for a, o in zip(i.indices, f._size_nodomain.left):
+                indices.append(lower_exprs(a) + o)
 
             # Substitute spacing (spacing only used in own dimension)
             indices = [i.xreplace({d.spacing: 1, -d.spacing: -1})
