@@ -142,10 +142,8 @@ def _lower_exprs(expressions, subs):
         # Apply mapper to expression
         processed.append(uxreplace(expr, mapper))
 
-    if isinstance(expressions, Iterable):       
+    if isinstance(expressions, Iterable):
         return processed
     else:
         assert len(processed) == 1
         return processed.pop()
-
-
