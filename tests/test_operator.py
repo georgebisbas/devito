@@ -2017,4 +2017,3 @@ class TestInternals:
 
         assert np.all(f.data[0] == 0.)
         assert np.all(f.data[i] == 3. for i in range(1, 10))
-
