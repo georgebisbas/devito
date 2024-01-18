@@ -398,16 +398,14 @@ class Communications(Queue):
                not d._defines & hs.distributed_aindices:
                 continue
 
-            if not halo_scheme.is_void and \
+            if not hs.is_void and \
                c.properties.is_parallel_relaxed(d):
                 points = set()
 
-                for f in halo_scheme.fmapper:
-                    import pdb;pdb.set_trace()
+                for f in hs.fmapper:
+                    # import pdb;pdb.set_trace()
                     for a in c.scope.getreads(f):
                         points.add(a.access)
-
-                
 
                 #from devito.ir.support.utils import minmax_index
 
@@ -436,9 +434,8 @@ class Communications(Queue):
             # the args is important because that's what search functions honor!
             points = sorted(points, key=str)
 
-                
-                
-                rhs = HaloTouch(*points, halo_scheme=halo_scheme)
+            # Construct the HaloTouch Cluster
+            expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
 
             key = lambda i: i in prefix[:-1] or i in hs.loc_indices
             ispace = c.ispace.project(key)
