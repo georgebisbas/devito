@@ -190,9 +190,6 @@ def create_call_graph(root, efuncs):
                     pass
                 dag.add_edge(callee, caller)
 
-    # Sanity check
-    if dag.size > 1:
-        import pdb;pdb.set_trace()
     assert dag.size == len(efuncs)
 
     return dag

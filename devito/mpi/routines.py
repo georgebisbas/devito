@@ -434,7 +434,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         comm = distributor._obj_comm
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
-
         # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
         # `ofs` are symbolic objects. This mapper tells what data values should be
         # sent (OWNED) or received (HALO) given dimension and side
@@ -525,232 +524,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         return List(body=body)
 
-
-class Basic2HaloExchangeBuilder(HaloExchangeBuilder):
-
-    """
-    A HaloExchangeBuilder making use of synchronous MPI routines only.
-
-    Generates:
-
-        haloupdate()
-        compute()
-    """
-
-    def _make_region(self, hs, key):
-        return MPIRegion('reg', key, hs.arguments, hs.omapper.owned)
-
-    def _make_bundles(self, hs):
-        halo_scheme = hs.halo_scheme
-
-        mapper = as_mapper(halo_scheme.fmapper, lambda i: halo_scheme.fmapper[i])
-        for hse, components in mapper.items():
-            # We recast everything as Bags for simplicity -- worst case scenario
-            # all Bags only have one component. Existing Bundles are preserved
-            halo_scheme = halo_scheme.drop(components)
-            bundles, candidates = split(tuple(components), lambda i: i.is_Bundle)
-            for b in bundles:
-                halo_scheme = halo_scheme.add(b, hse)
-
-            try:
-                name = "bag_%s" % "".join(f.name for f in candidates)
-                bag = Bag(name=name, components=candidates)
-                halo_scheme = halo_scheme.add(bag, hse)
-            except ValueError:
-                for i in candidates:
-                    name = "bag_%s" % i.name
-                    bag = Bag(name=name, components=i)
-                    halo_scheme = halo_scheme.add(bag, hse)
-
-        hs = hs._rebuild(halo_scheme=halo_scheme)
-
-        return hs
-
-    def _make_msg(self, f, hse, key):
-        # Only retain the halos required by the Diag scheme
-        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsgEnriched('msg%d' % key, f, halos)
-
-    def _make_all(self, f, hse, msg):
-        key = self._gen_commkey()
-
-        # sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
-        gather = self._make_copy(f, hse, key)
-        wait = self._make_wait(f, hse, key, msg=msg)
-        scatter = self._make_copy(f, hse, key, swap=True)
-        haloupdate = self._make_haloupdate(f, hse, key, msg=msg)
-        halowait = self._make_halowait(f, hse, key, wait, msg=msg)
-
-        self._efuncs.append(haloupdate)
-        if halowait is not None:
-            self._efuncs.append(halowait)
-        if wait is not None:
-            self._efuncs.append(wait)
-        # if sendrecv is not None:
-        #     self._efuncs.append(sendrecv)
-        self._efuncs.extend([gather, scatter])
-
-        return haloupdate, halowait
-
-    def _make_copy(self, f, hse, key, swap=False):
-        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
-        ofs = [Symbol(name='o%s' % d.root, is_const=True) for d in f.dimensions]
-
-        bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
-        bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
-                 for d, s in zip(dims, bshape)]
-
-        eqns = []
-        eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
-        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in bdims])
-
-        vd = CustomDimension(name='vd', symbolic_size=f.ncomp)
-        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
-                    padding=0)
-
-        mapper = dict(zip(dims, bdims))
-        findices = [o - h + mapper.get(d.root, 0)
-                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
-
-        if swap is False:
-            swap = lambda i, j: (i, j)
-            name = 'gather%s' % key
-        else:
-            swap = lambda i, j: (j, i)
-            name = 'scatter%s' % key
-        if isinstance(f, Bag):
-            for i, c in enumerate(f.components):
-                eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
-        else:
-            for i in range(f.ncomp):
-                eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
-
-        # Compile `eqns` into an IET via recursive compilation
-        irs, _ = self.rcompile(eqns)
-
-        parameters = [buf] + bshape + list(f.handles) + ofs
-
-        return CopyBuffer(name, irs.uiet, parameters)
-
-    def _make_sendrecv(self, *args, **kwargs):
-        return
-
-    def _call_sendrecv(self, *args):
-        return
-
-    def _make_haloupdate(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
-        comm = f.grid.distributor._obj_comm
-
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
-
-        dim = Dimension(name='i')
-
-        msgi = IndexedPointer(msg, dim)
-
-        bufg = FieldFromComposite(msg._C_field_bufg, msgi)
-        bufs = FieldFromComposite(msg._C_field_bufs, msgi)
-
-        fromrank = FieldFromComposite(msg._C_field_from, msgi)
-        torank = FieldFromComposite(msg._C_field_to, msgi)
-
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
-                 for i in range(len(f._dist_dimensions))]
-        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
-                for i in range(len(f._dist_dimensions))]
-        ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
-
-        # The `gather` is unnecessary if sending to MPI.PROC_NULL
-        arguments = [cast(bufg)] + sizes + list(f.handles) + ofsg
-        gather = Gather('gather%s' % key, arguments)
-        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
-
-        # Make Irecv/Isend
-        count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
-        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
-        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-                          fromrank, Integer(13), comm, rrecv])
-        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-                         torank, Integer(13), comm, rsend])
-
-        # The -1 below is because an Iteration, by default, generates <=
-        ncomms = Symbol(name='ncomms')
-        iet = Iteration([recv, gather, send], dim, ncomms - 1)
-        parameters = f.handles + (comm, msg, ncomms) + tuple(fixed.values())
-        return HaloUpdate('haloupdate%s' % key, iet, parameters)
-
-    def _call_haloupdate(self, name, f, hse, msg):
-        comm = f.grid.distributor._obj_comm
-        args = f.handles + (comm, msg, msg.npeers) + tuple(hse.loc_indices.values())
-        import pdb;pdb.set_trace()
-
-        return HaloUpdateCall(name, args)
-
-    def _make_compute(self, *args):
-        return
-
-    def _make_poke(self, *args):
-        return
-
-    def _call_poke(self, *args):
-        return
-
-    def _call_compute(self, hs, *args):
-        return hs.body
-
-    def _make_halowait(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
-
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
-
-        dim = Dimension(name='i')
-
-        msgi = IndexedPointer(msg, dim)
-
-        bufs = FieldFromComposite(msg._C_field_bufs, msgi)
-
-        fromrank = FieldFromComposite(msg._C_field_from, msgi)
-
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
-                 for i in range(len(f._dist_dimensions))]
-        ofss = [FieldFromComposite('%s[%d]' % (msg._C_field_ofss, i), msgi)
-                for i in range(len(f._dist_dimensions))]
-        ofss = [fixed.get(d) or ofss.pop(0) for d in f.dimensions]
-
-        # The `scatter` must be guarded as we must not alter the halo values along
-        # the domain boundary, where the sender is actually MPI.PROC_NULL
-        arguments = [cast(bufs)] + sizes + list(f.handles) + ofss
-        scatter = Scatter('scatter%s' % key, arguments)
-        scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
-
-        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
-        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
-        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
-        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
-
-        # The -1 below is because an Iteration, by default, generates <=
-        ncomms = Symbol(name='ncomms')
-        iet = Iteration([waitsend, waitrecv, scatter], dim, ncomms - 1)
-        parameters = f.handles + tuple(fixed.values()) + (msg, ncomms)
-        return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
-
-    def _call_halowait(self, name, f, hse, msg):
-        args = f.handles + tuple(hse.loc_indices.values()) + (msg, msg.npeers)
-        return HaloWaitCall(name, args)
-
-    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
-        body = []
-
-        body.append(HaloUpdateList(body=haloupdates))
-        if callcompute is not None:
-            body.append(callcompute)
-        body.append(HaloWaitList(body=halowaits))
-        if remainder is not None:
-            body.append(self._call_remainder(remainder))
-
-        return List(body=body)
-    
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
@@ -1108,6 +881,42 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         iet = Iteration(iet, dim, region.nregions - 1)
 
         return Remainder.make('remainder%d' % key, iet)
+
+
+class Basic2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    """
+
+    def _make_region(self, hs, key):
+        return
+
+    def _make_msg(self, f, hse, key):
+        # Only retain the halos required by the Diag scheme
+        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
+
+        processed = []
+        # Further reduce to Only retain the halos required by the Diag scheme
+        for i in halos:
+            # This way we only keep vertican and horizontal exchanges
+            x = [j for j in i.side if j == CENTER]
+            if len(x) == (len(i.side) - 1):
+                processed.append(i)
+
+        return MPIMsgEnriched('msg%d' % key, f, processed)
+
+    def _make_compute(self, hs, key, *args):
+        return
+
+    def _call_compute(self, hs, compute, *args):
+        return
+
+    def _make_remainder(self, hs, key, callcompute, region):
+        # Just a dummy value, other than a Callable, so that we enter `_call_remainder`
+        return hs.body
+
+    def _call_remainder(self, remainder):
+        return remainder
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):

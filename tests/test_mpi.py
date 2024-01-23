@@ -640,7 +640,7 @@ class TestSparseFunction(object):
         expected = 10*11/2  # n (n+1)/2
         assert np.allclose(s.data, expected)
 
-    @pytest.mark.parallel(mode=[(4, 'diag2')])
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag2'), (4, 'basic2')])
     def test_no_grid_dim_slow(self):
         shape = (12, 13, 14)
         nfreq = 5
@@ -766,7 +766,8 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
+                                (4, 'overlap2'), (4, 'diag2'), (4, 'full'),
+                                (4, 'basic2')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -801,8 +802,9 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
-                                (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
+    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic2'), (8, 'diag'),
+                                (8, 'overlap'), (8, 'overlap2'), (8, 'diag2'),
+                                (8, 'full')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -1164,7 +1166,7 @@ class TestCodeGeneration(object):
         else:
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
-    @pytest.mark.parallel(mode=[(1, 'full')])
+    @pytest.mark.parallel(mode=[(1, 'full'), (1, 'basic2')])
     def test_avoid_fullmode_if_crossloop_dep(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -1486,7 +1488,7 @@ class TestCodeGeneration(object):
             # W/o OpenMP, it's a different story
             assert call._single_thread
 
-    @pytest.mark.parallel(mode=[(1, 'diag2')])
+    @pytest.mark.parallel(mode=[(1, 'diag2'), (1, 'basic2')])
     def test_diag2_quality(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -1508,6 +1510,7 @@ class TestCodeGeneration(object):
         (1, 'diag'),
         (1, 'overlap'),
         (1, 'overlap2'),
+        (1, 'basic2'),
         (1, 'diag2'),
         (1, 'full'),
     ])
@@ -1539,7 +1542,7 @@ class TestCodeGeneration(object):
             assert len(op._func_table) == 6
             assert len(calls) == 4  # haloupdate, compute, halowait, remainder
             assert 'haloupdate1' not in op._func_table
-        elif configuration['mpi'] in ('diag2'):
+        elif configuration['mpi'] in ('diag2', 'basic2'):
             assert len(op._func_table) == 4
             assert len(calls) == 2
             assert calls[0].name == 'haloupdate0'
@@ -1551,7 +1554,7 @@ class TestCodeGeneration(object):
             assert 'haloupdate1' not in op._func_table
             assert len(FindNodes(ComputeCall).visit(op)) == 1
 
-    @pytest.mark.parallel(mode=[(1, 'diag2')])
+    @pytest.mark.parallel(mode=[(1, 'diag2'), (1, 'basic2')])
     def test_many_functions(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -2113,7 +2116,7 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
-    @pytest.mark.parallel(mode=2)
+    @pytest.mark.parallel(mode=[(2, 'diag2'), (2, 'basic2')])
     def test_haloupdate_same_timestep_v2(self):
         """
         Similar to test_haloupdate_same_timestep, but switching the expression that
@@ -2144,7 +2147,7 @@ class TestOperatorAdvanced(object):
 
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[(4, 'overlap2'), (4, 'basic2'), (4, 'diag2')])
     def test_haloupdate_multi_op(self):
         """
         Test that halo updates are carried out correctly when multiple operators
@@ -2195,7 +2198,8 @@ class TestOperatorAdvanced(object):
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'),
+                                (4, 'diag2'), (4, 'overlap2')])
     def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -2237,7 +2241,7 @@ class TestOperatorAdvanced(object):
 
         assert u0_norm == u1_norm
 
-    @pytest.mark.parallel(mode=[(4, 'overlap2'), (4, 'diag2')])
+    @pytest.mark.parallel(mode=[(4, 'overlap2'), (4, 'basic2'), (4, 'diag2')])
     def test_cire_with_shifted_diagonal_halo_touch(self):
         """
         Like ``test_cire`` but now the diagonal halos required to compute
@@ -2310,7 +2314,7 @@ class TestOperatorAdvanced(object):
         # or both, once issue #1438 is fixed
         assert np.allclose(p.data, p1.data, rtol=10e-11)
 
-    @pytest.mark.parallel(mode=[(4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'diag2'), (4, 'basic2')])
     def test_staggering(self):
         """
         Test MPI in presence of staggered grids.
@@ -2340,7 +2344,7 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(uxx), 80001.0304, rtol=1.e-4)
         assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
 
-    @pytest.mark.parallel(mode=2)
+    @pytest.mark.parallel(mode=[(4, 'diag2'), (4, 'basic2')])
     def test_op_new_dist(self):
         """
         Test that an operator made with one distributor produces correct results
@@ -2368,7 +2372,7 @@ class TestOperatorAdvanced(object):
 
         assert abs(norm(u) - norm(u2)) < 1.e-3
 
-    @pytest.mark.parallel(mode=[(4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'full'), (4, 'basic2')])
     def test_misc_subdims(self):
         """
         Test MPI full mode with an Operator having:
@@ -2658,7 +2662,7 @@ class TestIsotropicAcoustic(object):
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    @pytest.mark.parallel(mode=[(8, 'diag2'), (8, 'full')])
+    @pytest.mark.parallel(mode=[(8, 'basic2'), (8, 'full')])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """

@@ -30,7 +30,7 @@ def test_basic():
     assert np.all(u.data == u1.data)
 
 
-@pytest.mark.parallel(mode=[(1, 'basic'), (1, 'diag2'), (1, 'full')])
+@pytest.mark.parallel(mode=[(1, 'basic'), (1, 'diag2'), (1, 'basic2'), (1, 'full')])
 def test_mpi():
     grid = Grid(shape=(4, 4))
 
@@ -152,7 +152,7 @@ def test_interpolation_msf():
     assert op1.cfunction
 
 
-@pytest.mark.parallel(mode=[(1, 'diag2')])
+@pytest.mark.parallel(mode=[(1, 'diag2'), (1, 'basic2')])
 def test_codegen_quality0():
     grid = Grid(shape=(4, 4))
 
