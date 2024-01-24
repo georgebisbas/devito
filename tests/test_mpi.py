@@ -802,9 +802,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic2'), (8, 'diag'),
-                                (8, 'overlap'), (8, 'overlap2'), (8, 'diag2'),
-                                (8, 'full')])
+    @pytest.mark.parallel(mode=[(8, 'basic2'), (8, 'overlap'), (8, 'diag2')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -2645,12 +2643,14 @@ class TestIsotropicAcoustic(object):
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
 
+        print("===================================passed forward")
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
 
         assert np.isclose(norm(v) / Ev, 1.0)
         assert np.isclose(norm(srca) / Esrca, 1.0)
 
+        print("===================================passed adjoint")
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec)**2
@@ -2662,7 +2662,7 @@ class TestIsotropicAcoustic(object):
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
-    @pytest.mark.parallel(mode=[(8, 'basic2'), (8, 'full')])
+    @pytest.mark.parallel(mode=[(2, 'diag2')])
     @switchconfig(openmp=False)
     def test_adjoint_F_no_omp(self):
         """

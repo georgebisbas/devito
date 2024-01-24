@@ -897,13 +897,14 @@ class Basic2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
         processed = []
         # Further reduce to Only retain the halos required by the Diag scheme
+
         for i in halos:
             # This way we only keep vertican and horizontal exchanges
             x = [j for j in i.side if j == CENTER]
             if len(x) == (len(i.side) - 1):
                 processed.append(i)
 
-        return MPIMsgEnriched('msg%d' % key, f, processed)
+        return MPIMsgEnriched2('msg%d' % key, f, processed)
 
     def _make_compute(self, hs, key, *args):
         return
@@ -917,6 +918,56 @@ class Basic2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     def _call_remainder(self, remainder):
         return remainder
+
+    def _make_haloupdate(self, f, hse, key, *args, msg=None):
+        cast = cast_mapper[(f.c0.dtype, '*')]
+        comm = f.grid.distributor._obj_comm
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        dim = Dimension(name='i')
+
+        msgi = IndexedPointer(msg, dim)
+
+        bufg = FieldFromComposite(msg._C_field_bufg, msgi)
+        bufs = FieldFromComposite(msg._C_field_bufs, msgi)
+
+        fromrank = FieldFromComposite(msg._C_field_from, msgi)
+        torank = FieldFromComposite(msg._C_field_to, msgi)
+
+        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
+                 for i in range(len(f._dist_dimensions))]
+        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
+                for i in range(len(f._dist_dimensions))]
+        ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
+
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        arguments = [cast(bufg)] + sizes + list(f.handles) + ofsg
+        gather = Gather('gather%s' % key, arguments)
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+
+        # Make Irecv/Isend
+        count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
+        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                          fromrank, Integer(13), comm, rrecv])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, rsend])
+
+        # The -1 below is because an Iteration, by default, generates <=
+        ncomms = Symbol(name='ncomms')
+        iet = Iteration([recv, gather, send], dim, ncomms - 1)
+        parameters = f.handles + (comm, msg, ncomms) + tuple(fixed.values())
+
+        import pdb;pdb.set_trace()
+        return HaloUpdate('haloupdate%s' % key, iet, parameters)
+
+    def _call_haloupdate(self, name, f, hse, msg):
+        import pdb;pdb.set_trace()
+        comm = f.grid.distributor._obj_comm
+        args = f.handles + (comm, msg, msg.npeers) + tuple(hse.loc_indices.values())
+        return HaloUpdateCall(name, args)
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -1299,6 +1350,61 @@ class MPIMsgEnriched(MPIMsg):
                     v = getattr(f._offset_owned[dim], side.name)
                     ofsg.append(self._as_number(v, args))
                 except AttributeError:
+                    assert side is CENTER
+                    ofsg.append(f._offset_owned[dim].left)
+            entry.ofsg = (c_int*len(ofsg))(*ofsg)
+
+            # `fromrank` peer + scatter offsets
+            entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
+            ofss = []
+            for dim, side in zip(*halo):
+                try:
+                    v = getattr(f._offset_halo[dim], side.flip().name)
+                    ofss.append(self._as_number(v, args))
+                except AttributeError:
+                    assert side is CENTER
+                    # Note `_offset_owned`, and not `_offset_halo`, is *not* a bug
+                    # here. If it's the CENTER we need, we can't just use
+                    # `_offset_halo[d].left` as otherwise we would pick the corner
+                    ofss.append(f._offset_owned[dim].left)
+            entry.ofss = (c_int*len(ofss))(*ofss)
+
+        return {self.name: self.value}
+
+
+class MPIMsgEnriched2(MPIMsg):
+
+    _C_field_ofss = 'ofss'
+    _C_field_ofsg = 'ofsg'
+    _C_field_from = 'fromrank'
+    _C_field_to = 'torank'
+
+    fields = MPIMsg.fields + [
+        (_C_field_ofss, POINTER(c_int)),
+        (_C_field_ofsg, POINTER(c_int)),
+        (_C_field_from, c_int),
+        (_C_field_to, c_int)
+    ]
+
+    def _arg_defaults(self, allocator, alias=None, args=None):
+        super()._arg_defaults(allocator, alias, args=args)
+
+        f = alias or self.target.c0
+        neighborhood = f.grid.distributor.neighborhood
+
+        for i, halo in enumerate(self.halos):
+            entry = self.value[i]
+
+            # `torank` peer + gather offsets
+            entry.torank = neighborhood[halo.side]
+            ofsg = []
+            # import pdb;pdb.set_trace()
+            for dim, side in zip(*halo):
+                try:
+                    v = getattr(f._offset_owned[dim], side.name)
+                    ofsg.append(self._as_number(v, args))
+                except AttributeError:
+                    #import pdb;pdb.set_trace()
                     assert side is CENTER
                     ofsg.append(f._offset_owned[dim].left)
             entry.ofsg = (c_int*len(ofsg))(*ofsg)
