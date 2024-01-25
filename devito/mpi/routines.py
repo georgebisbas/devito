@@ -633,6 +633,7 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_sendrecv(self, f, hse, key, **kwargs):
         comm = f.grid.distributor._obj_comm
+        msg = kwargs['msg']
 
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
         bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
@@ -672,10 +673,12 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
         waitrecv = Call('MPI_Wait', [Byref(rrecv), Macro('MPI_STATUS_IGNORE')])
         waitsend = Call('MPI_Wait', [Byref(rsend), Macro('MPI_STATUS_IGNORE')])
 
+        # import pdb;pdb.set_trace()
+
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
 
         parameters = (list(f.handles) + shape + ofsg + ofss +
-                      [fromrank, torank, comm])
+                      [fromrank, torank, comm, msg])
 
         return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
 
@@ -735,7 +738,7 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
                 rsizes, rofs = mapper[(d, RIGHT, HALO)]
                 # args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
                 # args = [f, lsizes, lofs, rofs, fromrank, torank, comm]
-                args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
+                args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm, msg]
                 # args = [f, lsizes, lofs, rofs, comm]
                 body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
 
@@ -744,7 +747,7 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
                 rsizes, rofs = mapper[(d, RIGHT, OWNED)]
                 lsizes, lofs = mapper[(d, LEFT, HALO)]
                 # args = [f, rsizes, rofs, lofs, torank, fromrank, comm]
-                args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
+                args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm, msg]
                 # args = [f, rsizes, rofs, lofs, comm]
                 body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
 
@@ -1472,7 +1475,7 @@ class MPIMsg(CompositeObject):
 
             # Buffer shape for this peer
             shape = []
-            import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
             for dim, side in zip(*halo):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
