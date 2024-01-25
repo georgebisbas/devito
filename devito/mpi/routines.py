@@ -324,7 +324,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         scatter = self._make_copy(f, hse, key, swap=True)
         haloupdate = self._make_haloupdate(f, hse, key, sendrecv, msg=msg)
         halowait = self._make_halowait(f, hse, key, wait, msg=msg)
-
+        # import pdb;pdb.set_trace()
         self._efuncs.append(haloupdate)
         if halowait is not None:
             self._efuncs.append(halowait)
@@ -487,6 +487,282 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         comm = f.grid.distributor._obj_comm
         nb = f.grid.distributor._obj_neighborhood
         args = list(f.handles) + [comm, nb] + list(hse.loc_indices.values())
+        return HaloUpdateCall(name, flatten(args))
+
+    def _make_compute(self, *args):
+        return
+
+    def _make_poke(self, *args):
+        return
+
+    def _call_poke(self, *args):
+        return
+
+    def _call_compute(self, hs, *args):
+        return hs.body
+
+    def _make_halowait(self, *args, **kwargs):
+        return
+
+    def _call_halowait(self, *args, **kwargs):
+        return
+
+    def _make_remainder(self, *args):
+        return
+
+    def _call_remainder(self, *args):
+        return
+
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        body.append(HaloUpdateList(body=haloupdates))
+        if callcompute is not None:
+            body.append(callcompute)
+        body.append(HaloWaitList(body=halowaits))
+        if remainder is not None:
+            body.append(self._call_remainder(remainder))
+
+        return List(body=body)
+
+
+class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
+
+    """
+    A HaloExchangeBuilder making use of synchronous MPI routines only.
+
+    Generates:
+
+        haloupdate()
+        compute()
+    """
+
+    def _make_bundles(self, hs):
+        halo_scheme = hs.halo_scheme
+
+        mapper = as_mapper(halo_scheme.fmapper, lambda i: halo_scheme.fmapper[i])
+        for hse, components in mapper.items():
+            # We recast everything as Bags for simplicity -- worst case scenario
+            # all Bags only have one component. Existing Bundles are preserved
+            halo_scheme = halo_scheme.drop(components)
+            bundles, candidates = split(tuple(components), lambda i: i.is_Bundle)
+            for b in bundles:
+                halo_scheme = halo_scheme.add(b, hse)
+
+            try:
+                name = "bag_%s" % "".join(f.name for f in candidates)
+                bag = Bag(name=name, components=candidates)
+                halo_scheme = halo_scheme.add(bag, hse)
+            except ValueError:
+                for i in candidates:
+                    name = "bag_%s" % i.name
+                    bag = Bag(name=name, components=i)
+                    halo_scheme = halo_scheme.add(bag, hse)
+
+        hs = hs._rebuild(halo_scheme=halo_scheme)
+
+        return hs
+
+    def _make_msg(self, f, hse, key):
+        # import pdb;pdb.set_trace()
+        halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
+        return MPIMsg('msg%d' % key, f, halos)
+
+        # return
+
+    def _make_all(self, f, hse, msg):
+        key = self._gen_commkey()
+
+        sendrecv = self._make_sendrecv(f, hse, key, msg=msg)
+        gather = self._make_copy(f, hse, key)
+        wait = self._make_wait(f, hse, key, msg=msg)
+        scatter = self._make_copy(f, hse, key, swap=True)
+        haloupdate = self._make_haloupdate(f, hse, key, sendrecv, msg=msg)
+        halowait = self._make_halowait(f, hse, key, wait, msg=msg)
+        # import pdb;pdb.set_trace()
+        self._efuncs.append(haloupdate)
+        if halowait is not None:
+            self._efuncs.append(halowait)
+        if wait is not None:
+            self._efuncs.append(wait)
+        if sendrecv is not None:
+            self._efuncs.append(sendrecv)
+        self._efuncs.extend([gather, scatter])
+
+        return haloupdate, halowait
+
+    def _make_copy(self, f, hse, key, swap=False):
+        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        ofs = [Symbol(name='o%s' % d.root, is_const=True) for d in f.dimensions]
+
+        bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
+        bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
+                 for d, s in zip(dims, bshape)]
+
+        eqns = []
+        eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
+        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in bdims])
+
+        vd = CustomDimension(name='vd', symbolic_size=f.ncomp)
+        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
+                    padding=0)
+
+        mapper = dict(zip(dims, bdims))
+        findices = [o - h + mapper.get(d.root, 0)
+                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
+
+        if swap is False:
+            swap = lambda i, j: (i, j)
+            name = 'gather%s' % key
+        else:
+            swap = lambda i, j: (j, i)
+            name = 'scatter%s' % key
+        if isinstance(f, Bag):
+            for i, c in enumerate(f.components):
+                eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+        else:
+            for i in range(f.ncomp):
+                eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
+
+        # Compile `eqns` into an IET via recursive compilation
+        irs, _ = self.rcompile(eqns)
+
+        parameters = [buf] + bshape + list(f.handles) + ofs
+
+        return CopyBuffer(name, irs.uiet, parameters)
+
+    def _make_sendrecv(self, f, hse, key, **kwargs):
+        comm = f.grid.distributor._obj_comm
+
+        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
+
+        bufg = Array(name='bufg', dimensions=bdims, dtype=f.c0.dtype,
+                     padding=0, liveness='eager')
+        bufs = Array(name='bufs', dimensions=bdims, dtype=f.c0.dtype,
+                     padding=0, liveness='eager')
+
+        ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
+        ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
+
+        fromrank = Symbol(name='fromrank')
+        torank = Symbol(name='torank')
+
+        shape = [d.symbolic_size for d in dims]
+
+        arguments = [bufg] + shape + list(f.handles) + ofsg
+        gather = Gather('gather%s' % key, arguments)
+        arguments = [bufs] + shape + list(f.handles) + ofss
+        scatter = Scatter('scatter%s' % key, arguments)
+
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+        # The `scatter` must be guarded as we must not alter the halo values along
+        # the domain boundary, where the sender is actually MPI.PROC_NULL
+        scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
+
+        count = reduce(mul, bufs.shape, 1)
+        rrecv = MPIRequestObject(name='rrecv', liveness='eager')
+        rsend = MPIRequestObject(name='rsend', liveness='eager')
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                         fromrank, Integer(13), comm, Byref(rrecv)])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, Byref(rsend)])
+
+        waitrecv = Call('MPI_Wait', [Byref(rrecv), Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [Byref(rsend), Macro('MPI_STATUS_IGNORE')])
+
+        iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
+
+        parameters = (list(f.handles) + shape + ofsg + ofss +
+                      [fromrank, torank, comm])
+
+        return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
+
+    def _call_sendrecv(self, name, *args, **kwargs):
+        args = list(args[0].handles) + flatten(args[1:])
+        return Call(name, args)
+
+    def _make_haloupdate(self, f, hse, key, sendrecv, **kwargs):
+        # import pdb;pdb.set_trace()
+        distributor = f.grid.distributor
+        nb = distributor._obj_neighborhood
+        comm = distributor._obj_comm
+        msg = kwargs['msg']
+
+        # bufg = FieldFromPointer(msg._C_field_bufg, msg)
+        # bufs = FieldFromPointer(msg._C_field_bufs, msg)
+
+        # fromrank = Symbol(name='fromrank')
+        # torank = Symbol(name='torank')
+
+        # import pdb;pdb.set_trace()
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
+        # `ofs` are symbolic objects. This mapper tells what data values should be
+        # sent (OWNED) or received (HALO) given dimension and side
+        mapper = {}
+        for d0, side, region in product(f.dimensions, (LEFT, RIGHT), (OWNED, HALO)):
+            if d0 in fixed:
+                continue
+            sizes = []
+            ofs = []
+            for d1 in f.dimensions:
+                if d1 in fixed:
+                    ofs.append(fixed[d1])
+                else:
+                    meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
+                    ofs.append(meta.offset)
+                    sizes.append(meta.size)
+            mapper[(d0, side, region)] = (sizes, ofs)
+
+        body = []
+        for d in f.dimensions:
+            if d in fixed:
+                continue
+
+            name = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
+            rpeer = FieldFromPointer(name, nb)
+            name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
+            lpeer = FieldFromPointer(name, nb)
+
+            # import pdb;pdb.set_trace()
+            if (d, LEFT) in hse.halos:
+                # Sending to left, receiving from right
+                lsizes, lofs = mapper[(d, LEFT, OWNED)]
+                rsizes, rofs = mapper[(d, RIGHT, HALO)]
+                # args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
+                # args = [f, lsizes, lofs, rofs, fromrank, torank, comm]
+                args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
+                # args = [f, lsizes, lofs, rofs, comm]
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+
+            if (d, RIGHT) in hse.halos:
+                # Sending to right, receiving from left
+                rsizes, rofs = mapper[(d, RIGHT, OWNED)]
+                lsizes, lofs = mapper[(d, LEFT, HALO)]
+                # args = [f, rsizes, rofs, lofs, torank, fromrank, comm]
+                args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
+                # args = [f, rsizes, rofs, lofs, comm]
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+
+        iet = List(body=body)
+
+        # parameters = list(f.handles) + [comm, nb] + list(fixed.values())
+        parameters = list(f.handles) + [comm, nb, msg] + list(fixed.values())
+
+        return HaloUpdate('haloupdate%s' % key, iet, parameters)
+
+    def _call_haloupdate(self, name, f, hse, msg, *args):
+        comm = f.grid.distributor._obj_comm
+        nb = f.grid.distributor._obj_neighborhood
+
+        # args = list(f.handles) + [comm] + list(hse.loc_indices.values())
+        args = list(f.handles) + [comm, nb, msg] + list(hse.loc_indices.values())
+        # args = list(f.handles) + [comm, nb, msg] + list(hse.loc_indices.values())
+
         return HaloUpdateCall(name, flatten(args))
 
     def _make_compute(self, *args):
@@ -1003,6 +1279,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 mpi_registry = {
     True: BasicHaloExchangeBuilder,
     'basic': BasicHaloExchangeBuilder,
+    'basic1': Basic1HaloExchangeBuilder,
     'diag': DiagHaloExchangeBuilder,
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
@@ -1195,6 +1472,7 @@ class MPIMsg(CompositeObject):
 
             # Buffer shape for this peer
             shape = []
+            import pdb;pdb.set_trace()
             for dim, side in zip(*halo):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
