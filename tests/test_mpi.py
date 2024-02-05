@@ -765,7 +765,7 @@ class TestOperatorSimple(object):
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'diag'), (4, 'overlap'),
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
@@ -801,7 +801,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic1'), (8, 'diag'), (8, 'overlap'),
+    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
                                 (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
     def test_trivial_eq_3d(self):
         grid = Grid(shape=(8, 8, 8))
@@ -843,7 +843,7 @@ class TestOperatorSimple(object):
         # 4) interior
         assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'diag')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic'), (4, 'diag')])
     def test_multiple_eqs_funcs(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -1141,7 +1141,7 @@ class TestCodeGeneration(object):
         else:
             assert np.allclose(f.data_ro_domain[5:], [67., 67., 62., 56., 30.], rtol=R)
 
-    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'basic1'), (2, 'diag')])
+    @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'basic'), (2, 'diag')])
     def test_redo_haloupdate_due_to_antidep(self):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
@@ -1505,7 +1505,7 @@ class TestCodeGeneration(object):
 
     @pytest.mark.parallel(mode=[
         (1, 'basic'),
-        (1, 'basic1'),
+        (1, 'basic'),
         (1, 'diag'),
         (1, 'overlap'),
         (1, 'overlap2'),
@@ -1527,7 +1527,7 @@ class TestCodeGeneration(object):
 
         calls = FindNodes(Call).visit(op)
 
-        if configuration['mpi'] in ('basic', 'basic1', 'diag'):
+        if configuration['mpi'] in ('basic', 'basic', 'diag'):
             assert len(op._func_table) == 4  # gather, scatter, sendrecv, haloupdate
             assert len(calls) == 1
             assert calls[0].name == 'haloupdate0'
@@ -2042,7 +2042,7 @@ class TestOperatorAdvanced(object):
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'overlap'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
@@ -2196,7 +2196,7 @@ class TestOperatorAdvanced(object):
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'diag2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
     def test_cire(self):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -2412,7 +2412,7 @@ class TestOperatorAdvanced(object):
         assert np.all(u.data[1, -1:] == 1.)
         assert np.all(u.data[1, :, 1:] == 1.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic'), (4, 'full')])
     def test_misc_subdims_3D(self):
         """
         Test `SubDims` in 3D (so that spatial blocking is introduced).
@@ -2654,7 +2654,7 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'diag'), (4, 'overlap'),
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'full')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
