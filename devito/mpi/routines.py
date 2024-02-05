@@ -7,7 +7,7 @@ from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
+from devito.data import OWNED, HALO, DOMAIN, LEFT, CENTER, RIGHT, NOPAD
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
                            Expression, ExpressionBundle, AugmentedExpression,
@@ -447,8 +447,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             for d1 in f.dimensions:
                 if d1 in fixed:
                     ofs.append(fixed[d1])
+                elif d0 is d1 and region:
+                    meta = f._C_get_field(region, d1, side)
+                    ofs.append(meta.offset)
+                    sizes.append(meta.size)
                 else:
-                    meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
+                    import pdb;pdb.set_trace()
+                    meta = f._C_get_field(NOPAD, d1, side)
                     ofs.append(meta.offset)
                     sizes.append(meta.size)
             mapper[(d0, side, region)] = (sizes, ofs)

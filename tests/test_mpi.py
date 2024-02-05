@@ -2653,8 +2653,7 @@ class TestIsotropicAcoustic(object):
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 

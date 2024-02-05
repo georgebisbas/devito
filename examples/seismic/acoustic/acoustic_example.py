@@ -60,6 +60,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
     solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
+
+    print("Norm is:", norm(u))
+
+
     return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
 
