@@ -448,7 +448,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 if d1 in fixed:
                     ofs.append(fixed[d1])
                 else:
-                    meta = f._C_get_field(region if d0 is d1 else DOMAIN, d1, side)
+                    meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
                     ofs.append(meta.offset)
                     sizes.append(meta.size)
             mapper[(d0, side, region)] = (sizes, ofs)
@@ -462,6 +462,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             rpeer = FieldFromPointer(name, nb)
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
+
+            # import pdb;pdb.set_trace()
 
             if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
@@ -707,25 +709,8 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
         bufg = FieldFromPointer(msg._C_field_bufg, msg)
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
-        # fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
-
-        # import pdb;pdb.set_trace()
-        # msg = kwargs['msg']
-
-        # dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
-        # bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
-        #sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
-        #         for i in range(len(f._dist_dimensions))]
-        #ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msg)
-        #        for i in range(len(f._dist_dimensions))]
-        #ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
-
-        # bufg = Array(name='bufg', dimensions=bdims, dtype=f.c0.dtype,
-        #              padding=0, liveness='eager')
-        # bufs = Array(name='bufs', dimensions=bdims, dtype=f.c0.dtype,
-        #              padding=0, liveness='eager')
-
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
+
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
@@ -734,25 +719,18 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
-        # shape = [d.symbolic_size for d in dims]
-
-        # import pdb;pdb.set_trace()
         arguments = [cast(bufg)] + sizes + list(f.handles) + ofsg
-        # arguments = [bufg] + shape + list(f.handles) + ofsg
         gather = Gather('gather%s' % key, arguments)
-        
-        arguments = [cast(bufs)] + sizes + list(f.handles) + ofss
-        scatter = Scatter('scatter%s' % key, arguments)
-
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+
+        arguments = [cast(bufs)] + sizes + list(f.handles) + ofss
+        scatter = Scatter('scatter%s' % key, arguments)
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
-        # count = reduce(mul, sizes, 1)
         count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
-        
         rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
         rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
@@ -760,46 +738,20 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
         send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                          torank, Integer(13), comm, rsend])
       
-        # rrecv = MPIRequestObject(name='rrecv', liveness='eager')
-        # rsend = MPIRequestObject(name='rsend', liveness='eager')
-        # recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
-        #                  fromrank, Integer(13), comm, Byref(rrecv)])
-        # send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
-        #                  torank, Integer(13), comm, Byref(rsend)])
-
-        #rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
-        # waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
-        #rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
-        # waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
-
-        # waitrecv = Call('MPI_Wait', [Byref(rrecv), Macro('MPI_STATUS_IGNORE')])
-        # waitsend = Call('MPI_Wait', [Byref(rsend), Macro('MPI_STATUS_IGNORE')])
-
         waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
         waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
 
-        # import pdb;pdb.set_trace()
-
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
-        # iet = List(body=[recv, gather, send])
 
-        # parameters = (list(f.handles) + sizes + ofsg + ofss +
-        parameters = (list(f.handles) + ofsg + ofss +
-        #parameters = (list(f.handles) + ofsg + ofss +
-                      [fromrank, torank, comm, msg])
+        parameters = (list(f.handles) + ofsg + ofss + [fromrank, torank, comm, msg])
 
         return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
-
-    # def _call_sendrecv(self, name, *args, **kwargs):
-    #     args = list(args[0].handles) + flatten(args[1:])
-    #     return Call(name, args)
 
     def _call_sendrecv(self, name, *args, msg=None, haloid=None):
         # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
         # Drop `ofss` as this HaloExchangeBuilder only needs them in `wait()`,
         # to collect and scatter the result of an MPI_Irecv
         # import pdb;pdb.set_trace()
-
         f, _, ofsg, ofss, fromrank, torank, comm, msg = args
         msg = Byref(IndexedPointer(msg, haloid))
         # msg = Byref(IndexedPointer(msg, haloid))
@@ -811,14 +763,6 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
         msg = kwargs['msg']
-
-        # bufg = FieldFromPointer(msg._C_field_bufg, msg)
-        # bufs = FieldFromPointer(msg._C_field_bufs, msg)
-
-        # fromrank = Symbol(name='fromrank')
-        # torank = Symbol(name='torank')
-
-        # import pdb;pdb.set_trace()
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -850,7 +794,6 @@ class Basic1HaloExchangeBuilder(HaloExchangeBuilder):
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
 
-            # import pdb;pdb.set_trace()
             if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
                 lsizes, lofs = mapper[(d, LEFT, OWNED)]
@@ -1637,6 +1580,67 @@ class MPIMsg(CompositeObject):
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
+
+
+class MPIMsg2(MPIMsg):
+
+    def _arg_defaults(self, allocator, alias, args=None):
+        # Lazy initialization if `allocator` is necessary as the `allocator`
+        # type isn't really known until an Operator is constructed
+        self._allocator = allocator
+
+        f = alias or self.target.c0
+        for i, halo in enumerate(self.halos):
+            entry = self.value[i]
+
+            # Buffer shape for this peer
+            import pdb;pdb.set_trace()
+
+            shape = []
+
+            for dim, side in zip(*halo):
+
+                import pdb;pdb.set_trace()
+                if LEFT is halo.side[0]:
+                    shape.append(getattr(f._size_owned[dim], side.name))
+
+                if RIGHT is halo.side[0]:
+                    shape.append(getattr(f._size_owned[dim], side.name))
+
+                if CENTER is halo.side[1]:
+                    shape.append(getattr(f._size_nopad[dim], side.name))
+
+                if CENTER is halo.side[0]:
+                    shape.append(getattr(f._size_nopad[dim], side.name))
+
+                if LEFT is halo.side[1]:
+                    shape.append(getattr(f._size_halo[dim], side.name))
+
+                if RIGHT is halo.side[1]:
+                    shape.append(getattr(f._size_halo[dim], side.name))
+
+                # try:
+                #     import pdb;pdb.set_trace()
+                #     shape.append(getattr(f._size_owned[dim], side.name))
+                # except AttributeError:
+                #     import pdb;pdb.set_trace()
+                #     assert side is CENTER
+                #     shape.append(self._as_number(f._size_domain[dim], args))
+            
+            import pdb;pdb.set_trace()
+            entry.sizes = (c_int*len(shape))(*shape)
+
+            # Allocate the send/recv buffers
+            size = reduce(mul, shape)*dtype_len(self.target.dtype)
+            ctype = dtype_to_ctype(f.dtype)
+            entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
+            entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+
+            # The `memfree_args` will be used to deallocate the buffer upon
+            # returning from C-land
+            self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+
+        return {self.name: self.value}
 
 
 class MPIMsgEnriched(MPIMsg):
