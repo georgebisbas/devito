@@ -138,6 +138,8 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
 def generate_macros(iet):
     applications = FindApplications().visit(iet)
     headers = set().union(*[_generate_macros(i) for i in applications])
+    # Sort for deterministic code generation
+    headers = sorted(headers)
 
     return iet, {'headers': headers}
 
