@@ -287,7 +287,6 @@ class HaloScheme(object):
         ranks*, so the output of this method is guaranteed to be consistent
         across *all MPI ranks*.
         """
-
         items = [((d, CENTER), (d, LEFT), (d, RIGHT))
                  for d in filter_sorted(self.dimensions)]
 
