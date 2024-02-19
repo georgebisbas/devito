@@ -736,6 +736,20 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         return RegionMeta(offset, size)
 
+    @memoized_meth
+    def _C_get_size(self, region, dim, side=None):
+        """ Get the size given region and dimension """
+        if region is OWNED:
+            size = getattr(self._size_owned[dim], side.name)
+        elif region is HALO:
+            size = getattr(self._size_halo[dim], side.name)
+        elif region is DOMAIN:
+            size = getattr(self._size_domain[dim], side.name)
+        elif region is NOPAD:
+            size = self._size_nopad[dim]
+
+        return size
+
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
         if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1 or \

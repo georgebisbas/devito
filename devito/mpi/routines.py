@@ -483,9 +483,16 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 if d1 in fixed:
                     ofs.append(fixed[d1])
                 else:
-                    meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
+                    if d0 is d1:
+                        if region is OWNED:
+                            meta = f._C_get_field(region, d0, side)
+                        elif region is HALO:
+                            meta = f._C_get_field(region, d0, side)
+                    else:
+                        meta = f._C_get_field(NOPAD, d1, side)
                     ofs.append(meta.offset)
                     sizes.append(meta.size)
+
             mapper[(d0, side, region)] = (sizes, ofs)
 
         return mapper
@@ -1419,13 +1426,16 @@ class MPIMsgBasic2(MPIMsgBase):
                 else:
                     if d0 is d1:
                         if region is OWNED:
-                            sizes.append(getattr(f._size_owned[d0], side.name))
+                            sizes.append(f._C_get_size(region, d0, side))
                         elif region is HALO:
-                            sizes.append(getattr(f._size_halo[d0], side.name))
+                            sizes.append(f._C_get_size(region, d0, side))
                     else:
-                        sizes.append(self._as_number(f._size_nopad[d1], args))
+                        sizes.append(self._as_number(f._C_get_size(NOPAD, d1, side),
+                                                     args))
+
             mapper[(d0, side, region)] = (sizes)
 
+        import pdb;psb.set_trace()
         i = 0
         for d in f.dimensions:
             if d in fixed:

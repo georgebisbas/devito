@@ -457,6 +457,9 @@ class Bundle(ArrayBasic):
     def _C_get_field(self, region, dim, side=None):
         return self.c0._C_get_field(region, dim, side=side)
 
+    def _C_get_size(self, region, dim, side=None):
+        return self.c0._C_get_size(region, dim, side=side)
+
     def __getitem__(self, index):
         index = as_tuple(index)
         if len(index) == self.ndim:
