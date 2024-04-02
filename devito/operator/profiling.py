@@ -387,7 +387,7 @@ class AdvisorProfiler(AdvancedProfiler):
         if self.path is None:
             self.initialized = False
         else:
-            super(AdvisorProfiler, self).__init__(name)
+            super().__init__(name)
             # Make sure future compilations will get the proper header and
             # shared object files
             compiler = configuration['compiler']

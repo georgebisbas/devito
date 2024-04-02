@@ -57,9 +57,9 @@ def run_with_advisor(path, output, name, exec_args):
         check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
 
     try:
-        ret = check_output(['icc', '--version']).decode("utf-8")
+        ret = check_output(['icx', '--version']).decode("utf-8")
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect Intel Compiler (icc).")
+        check(False, "Error: Couldn't detect Intel Compiler (icx).")
 
     # All good, Intel compiler and advisor are available
     os.environ['DEVITO_ARCH'] = 'icc'
@@ -70,7 +70,7 @@ def run_with_advisor(path, output, name, exec_args):
     # Devito Logging is disabled unless the user asks explicitly to see it
     devito_logging = os.environ.get('DEVITO_LOGGING')
     if devito_logging is None:
-        os.environ['DEVITO_LOGGING'] = 'WARNING'
+        os.environ['DEVITO_LOGGING'] = 'DEBUG'
 
     with progress('Setting up multi-threading environment'):
         # Roofline analyses are recommended with threading enabled
@@ -113,14 +113,15 @@ def run_with_advisor(path, output, name, exec_args):
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
     ]
     advisor_survey = [
-        '-collect survey',
-        '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
-        '-run-pass-thru=-timestamp=sys',  # Avoids 'VTune Amplifier may detect which timer source to use incorrectly on Intel® Xeon® processor E5-XXXX processors (200287361)' # noqa
-        '-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
+        '-collect roofline',
+        #'-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
+        #'-run-pass-thru=-timestamp=sys',  # Avoids 'VTune Amplifier may detect which timer source to use incorrectly on Intel® Xeon® processor E5-XXXX processors (200287361)' # noqa
+        #'-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
         '-start-paused',  # The generated code will enable/disable Advisor on a loop basis according to the decorated pragmas  # noqa
     ]
     advisor_flops = [
         '--collect=tripcounts',
+        '--no-trip-counts',
         # '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline model `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
         '--flop',
         # '--stacks',
@@ -157,7 +158,7 @@ def run_with_advisor(path, output, name, exec_args):
 
     # import pdb;pdb.set_trace()
 
-    with progress('Performing `survey` analysis'):
+    with progress('Performing `roofline` analysis'):
         cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_survey + ['--'] + py_cmd
         try:
             p_survey = Popen(cmd, stdout=PIPE, stderr=PIPE)
@@ -165,14 +166,14 @@ def run_with_advisor(path, output, name, exec_args):
         except OSError:
             check(False, 'Failed!')
 
-    with progress('Performing `tripcounts` analysis'):
-        cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_flops + ['--'] + py_cmd
+    #with progress('Performing `tripcounts` analysis'):
+    #    cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_flops + ['--'] + py_cmd
         # import pdb;pdb.set_trace()
-        try:
-            p_tripcounts = Popen(cmd, stdout=PIPE, stderr=PIPE)
-            log_process(p_tripcounts, advixe_logger)
-        except OSError:
-            check(False, 'Failed!')
+    #    try:
+    #        p_tripcounts = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    #        log_process(p_tripcounts, advixe_logger)
+    #    except OSError:
+    #        check(False, 'Failed!')
 
     log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
     log('To plot a roofline type: ')

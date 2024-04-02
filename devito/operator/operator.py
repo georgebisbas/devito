@@ -718,6 +718,8 @@ class Operator(Callable):
                 perf("Operator `%s` fetched `%s` in %.2f s from jit-cache" %
                      (self.name, src_file, elapsed))
 
+
+
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
@@ -837,12 +839,22 @@ class Operator(Callable):
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
 
+        import pylikwid
+
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
             cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
+                print("start profiling---------------------------")
+                pylikwid.markerinit()
+                pylikwid.markerthreadinit()
+                pylikwid.markerstartregion("run1")
                 cfunction(*arg_values)
+                pylikwid.markerstopregion("run1")
+                pylikwid.markerclose()
+                print("end profiling---------------------------")
+
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -859,6 +871,7 @@ class Operator(Callable):
 
         # Output summary of performance achieved
         return self._emit_apply_profiling(args)
+
 
     # Performance profiling
 
