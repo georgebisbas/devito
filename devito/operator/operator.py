@@ -841,20 +841,19 @@ class Operator(Callable):
 
         import pylikwid
 
+        print("start profiling---------------------------")
+        pylikwid.markerinit()
+        pylikwid.markerthreadinit()
+        pylikwid.markerstartregion("run1")
+
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
             cfunction = self.cfunction
-            with self._profiler.timer_on('apply', comm=args.comm):
-                print("start profiling---------------------------")
-                pylikwid.markerinit()
-                pylikwid.markerthreadinit()
-                pylikwid.markerstartregion("run1")
-                cfunction(*arg_values)
-                pylikwid.markerstopregion("run1")
-                pylikwid.markerclose()
-                print("end profiling---------------------------")
 
+            with self._profiler.timer_on('apply', comm=args.comm):
+                cfunction(*arg_values)
+            
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -865,6 +864,11 @@ class Operator(Callable):
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
+
+        pylikwid.markerstopregion("run1")
+        pylikwid.markerclose()
+        print("end profiling---------------------------")
+
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
