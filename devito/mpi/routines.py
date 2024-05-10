@@ -663,7 +663,7 @@ class Basic3HaloExchangeBuilder(Basic2HaloExchangeBuilder):
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
         return MPIMsgBasic3('msg%d' % key, f, hse.halos, fixed)
-
+        
     def _make_sendrecv(self, *args, **kwargs):
         return
 
@@ -767,6 +767,18 @@ class Basic3HaloExchangeBuilder(Basic2HaloExchangeBuilder):
 
     def _call_wait(self, *args):
         return
+
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        body.append(HaloUpdateList(body=haloupdates))
+        body.append(HaloWaitList(body=halowaits))
+        if callcompute is not None:
+            body.append(callcompute)
+        if remainder is not None:
+            body.append(self._call_remainder(remainder))
+
+        return List(body=body)
 
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
@@ -1547,6 +1559,7 @@ class MPIMsgBasic2(MPIMsgBase):
             mapper[(d0, side, region)] = sizes
 
         i = 0
+        import pdb;pdb.set_trace()
         for d in f.dimensions:
             if d in fixed:
                 continue
@@ -1570,12 +1583,16 @@ class MPIMsgBasic2(MPIMsgBase):
         return {self.name: self.value}
 
 
-class MPIMsgBasic3(MPIMsgBasic2):
+class MPIMsgBasic3(MPIMsgBase):
 
     _C_field_ofss = 'ofss'
     _C_field_ofsg = 'ofsg'
     _C_field_from = 'fromrank'
     _C_field_to = 'torank'
+
+
+    # MAYBE WE NEED ADDITIONAL FIELDS ?
+    # LIKE LSHAPE AND RSHAPE
 
     fields = MPIMsg.fields + [
         (_C_field_ofss, POINTER(c_int)),
@@ -1584,13 +1601,27 @@ class MPIMsgBasic3(MPIMsgBasic2):
         (_C_field_to, c_int)
     ]
 
-    def _arg_defaults(self, allocator, alias, args=None):
-        super()._arg_defaults(allocator, alias, args=args)
+    def __init__(self, name, target, halos, fixed=None):
+        self._target = target
+        self._halos = halos
 
+        super().__init__(name, 'msg', self.fields)
+
+        # Required for buffer allocation/deallocation before/after jumping/returning
+        # to/from C-land
+        self._fixed = fixed
+        self._allocator = None
+        self._memfree_args = []
+
+    def _arg_defaults(self, allocator, alias, args=None):
+        # super()._arg_defaults(allocator, alias, args=args)
+
+        self._allocator = allocator
         f = alias or self.target.c0
+        fixed = self._fixed
+
         neighborhood = f.grid.distributor.neighborhood
 
-        fixed = self._fixed
 
         # Build a mapper `(dim, side, region) -> (size)` for `f`.
         mapper = {}
@@ -1601,30 +1632,31 @@ class MPIMsgBasic3(MPIMsgBasic2):
             ofs = []
             for d1 in f.dimensions:
                 if d1 in fixed:
-                    v = fixed[d1]
-                    ofs.append(v)
+                    # v = fixed[d1]
+                    # ofs.append(v)
                     continue
-                else:
-                    if d0 is d1:
-                        if region is OWNED:
-                            sizes.append(getattr(f._size_owned[d0], side.name))
-                            v = getattr(f._offset_owned[d0], side.name)
-                            ofs.append(v)
-                            ############################
-                            # ofs.append(meta.offset)
-                        elif region is HALO:
-                            sizes.append(getattr(f._size_halo[d0], side.name))
-                            v = getattr(f._offset_halo[d0], side.name)
-                            ofs.append(v)
-                    else:
-                        sizes.append(self._as_number(f._size_nopad[d1], args))
-                        # import pdb;pdb.set_trace()
-                        v = f._offset_domain[d0]
+                if d0 is d1:
+                    if region is OWNED:
+                        sizes.append(getattr(f._size_owned[d0], side.name))
+                        v = getattr(f._offset_owned[d0], side.name)
                         ofs.append(v)
+                        ############################
+                        # ofs.append(meta.offset)
+                    elif region is HALO:
+                        sizes.append(getattr(f._size_halo[d0], side.name))
+                        v = getattr(f._offset_halo[d0], side.name)
+                        ofs.append(v)
+                else:
+                    sizes.append(self._as_number(f._size_nopad[d1], args))
+                    # import pdb;pdb.set_trace()
+                    # d0 or d1?
+                    v = f._offset_domain[d1]
+                    ofs.append(v)
 
             # import pdb;pdb.set_trace()
             mapper[(d0, side, region)] = (sizes, ofs)
 
+        import pdb;pdb.set_trace()
         i = 0
         for d in f.dimensions:
             if d in fixed:
@@ -1633,53 +1665,46 @@ class MPIMsgBasic3(MPIMsgBasic2):
             if (d, LEFT) in self.halos:
                 entry = self.value[i]
 
-                import pdb;pdb.set_trace()
 
                 # We should try to construct the lpeer and rpeer as per basichalo
                 # Then feed this neighbothood and get back the communication
-                # Check how it is done in basichalo!!!!
-                entry.torank = -1
+                
+                #------------- Check how it is done in basichalo!!!!
+                
+                
+                # entry.torank = -1 # this needs change!!!
+                entry.torank = neighborhood[d][LEFT]
+                entry.fromrank = neighborhood[d][RIGHT]
 
                 i = i + 1
                 # Sending to left, receiving from right
-                shape, ofs = mapper[(d, LEFT, OWNED)]
-                # Allocate the send/recv buffers
-                entry.sizes = (c_int*len(shape))(*shape)
-                size = reduce(mul, shape)*dtype_len(self.target.dtype)
-                ctype = dtype_to_ctype(f.dtype)
-                entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
-                entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+                lshape, lofs = mapper[(d, LEFT, OWNED)]
+                rshape, rofs = mapper[(d, RIGHT, HALO)]
 
-                entry.ofsg = (c_int*len(ofs))(*ofs)
+                self._allocate_buffers(f, lshape, entry)
 
-                # The `memfree_args` will be used to deallocate the buffer upon
-                # returning from C-land
-                self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+                # entry.ofsg = (c_int*len(lofs))(*lofs)
+                # entry.ofss = (c_int*len(rofs))(*rofs)
 
             if (d, RIGHT) in self.halos:
                 entry = self.value[i]
 
-                entry.fromrank = -1
+                entry.torank = neighborhood[d][RIGHT]
+                entry.fromrank = neighborhood[d][LEFT]
 
                 i = i + 1
                 # Sending to right, receiving from left
-                shape, ofs = mapper[(d, RIGHT, OWNED)]
-                # Allocate the send/recv buffers
-                entry.sizes = (c_int*len(shape))(*shape)
-                size = reduce(mul, shape)*dtype_len(self.target.dtype)
-                ctype = dtype_to_ctype(f.dtype)
-                entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
-                entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+                lshape, lofs = mapper[(d, RIGHT, OWNED)]
+                rshape, rofs = mapper[(d, LEFT, HALO)]
 
-                entry.ofsg = (c_int*len(ofs))(*ofs)
+                # shape, ofs = mapper[(d, RIGHT, OWNED)]
+                
+                self._allocate_buffers(f, rshape, entry)
 
-
-                # The `memfree_args` will be used to deallocate the buffer upon
-                # returning from C-land
-                self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+                # entry.ofsg = (c_int*len(rofs))(*rofs)
+                # entry.ofss = (c_int*len(lofs))(*lofs)
 
         return {self.name: self.value}
-
 
 
 class MPIMsgEnriched(MPIMsg):
