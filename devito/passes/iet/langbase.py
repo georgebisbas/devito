@@ -452,19 +452,23 @@ class DeviceAwareMixin:
                 osdd_then = self.lang['set-device']([deviceid] + devicetype)
                 osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)
 
-                body = lang_init + [Conditional(
-                    CondNe(deviceid, -1),
-                    osdd_then,
-                    List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
-                )]
+                body = lang_init
+                
+                # [Conditional(
+                #     CondNe(deviceid, -1),
+                #     osdd_then,
+                #     List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
+                # )]
 
                 header = c.Comment('Begin of %s+MPI setup' % self.lang['name'])
                 footer = c.Comment('End of %s+MPI setup' % self.lang['name'])
             else:
-                body = lang_init + [Conditional(
-                    CondNe(deviceid, -1),
-                    self.lang['set-device']([deviceid] + devicetype)
-                )]
+                body = lang_init
+                
+                # + [Conditional(
+                #     CondNe(deviceid, -1),
+                #     self.lang['set-device']([deviceid] + devicetype)
+                # )]
 
                 header = c.Comment('Begin of %s setup' % self.lang['name'])
                 footer = c.Comment('End of %s setup' % self.lang['name'])
