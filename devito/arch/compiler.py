@@ -622,8 +622,10 @@ class PGICompiler(Compiler):
 class NvidiaCompiler(PGICompiler):
 
     def __lookup_cmds__(self):
-        self.CC = 'nvc++'
-        self.CXX = 'nvc++'
+        # self.CC = 'nvc++'
+        self.CC = 'icpx'
+        # self.CXX = 'nvc++'
+        self.CXX = 'icpx'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
