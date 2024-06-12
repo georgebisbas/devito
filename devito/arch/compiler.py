@@ -581,6 +581,21 @@ class DPCPPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class HackCompiler(Compiler):
+
+    def __init_finalize__(self, **kwargs):
+
+        self.cflags += ['-fsycl', '-fsycl-targets=spir64']
+
+    def __lookup_cmds__(self):
+        # OneAPI Base Kit comes with dpcpp/icpx, both are clang++,
+        # and icx, which is clang
+        self.CC = 'icx'
+        self.CXX = 'icpx'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
 class PGICompiler(Compiler):
 
     _cpp = True
@@ -987,7 +1002,8 @@ compiler_registry = {
     'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
-    'dpcpp': DPCPPCompiler,
+    'icpx': DPCPPCompiler,
+    'hack': HackCompiler,
 }
 """
 Registry dict for deriving Compiler classes according to the environment variable
