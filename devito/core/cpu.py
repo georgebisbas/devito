@@ -73,7 +73,7 @@ class Cpu64OperatorMixin:
 
         # Misc
         o['opt-comms'] = oo.pop('opt-comms', True)
-        o['linearize'] = oo.pop('linearize', True)
+        o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)

@@ -153,7 +153,10 @@ class AnisotropicWaveSolver:
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, v=v,
+        op = self.op_fwd(save)
+        
+        import pdb;pdb.set_trace()
+        summary = op.apply(src=src, rec=rec, u=u, v=v,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec, u, v, summary
 
