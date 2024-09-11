@@ -591,6 +591,7 @@ class PGICompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
 
+
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')

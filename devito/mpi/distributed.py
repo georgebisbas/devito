@@ -258,6 +258,7 @@ class Distributor(AbstractDistributor):
             self._comm = MPI.COMM_NULL
             self._topology = tuple(1 for _ in range(len(shape)))
 
+        print(MPI.Get_processor_name())
         # The domain decomposition
         self._decomposition = [Decomposition(np.array_split(range(i), j), c)
                                for i, j, c in zip(shape, self.topology, self.mycoords)]
