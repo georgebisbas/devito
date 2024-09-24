@@ -1645,14 +1645,17 @@ class TestCodeGeneration:
         x, y = grid.dimensions
 
         u = TimeFunction(name='u', grid=grid, time_order=1, save=Buffer(1))
+        # u = TimeFunction(name='u', grid=grid, time_order=1)
         v = TimeFunction(name='v', grid=grid, time_order=1, save=Buffer(1))
+        # v = TimeFunction(name='v', grid=grid, time_order=1)
 
         eqns = [Eq(u.forward, div(v) + 1.),
                 Eq(v.forward, div(u.forward) + 1.)]
 
         op = Operator(eqns)
-
+        print(op.ccode)
         calls = FindNodes(Call).visit(op)
+        op.apply(time_M = 20)
         # There should be two separate calls
         # halo(v), eq_u, halo_u, eq(v)
         assert len(calls) == 2

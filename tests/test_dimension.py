@@ -217,12 +217,13 @@ class TestBufferedDimension:
         """
         grid = Grid(shape=(10, 10))
 
-        u = TimeFunction(name='u', grid=grid, save=Buffer(1))
+        u = TimeFunction(name='u', grid=grid, save=None)
 
         eq = Eq(u.forward, u + 1)
 
         op = Operator(eq)
 
+        import pdb; pdb.set_trace();
         assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
 
         op.apply(time_M=9)
