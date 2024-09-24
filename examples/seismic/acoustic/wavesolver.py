@@ -103,7 +103,7 @@ class AcousticWaveSolver:
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.geometry.nt if save else Buffer(1),
+                              save=self.geometry.nt if save else Buffer(2),
                               # save=self.geometry.nt if save else None,
                               time_order=2, space_order=self.space_order)
 
