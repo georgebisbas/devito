@@ -1,5 +1,7 @@
 from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
+from devito import norm
 from devito.tools import memoized_meth
+
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
@@ -111,12 +113,12 @@ class AcousticWaveSolver:
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
-        from devito import norm
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
 
-        import pdb;pdb.set_trace();
+        print(norm(rec))
+        print(norm(u))
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, model=None, **kwargs):

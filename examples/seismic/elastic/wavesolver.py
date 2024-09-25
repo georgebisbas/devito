@@ -1,5 +1,6 @@
 from devito.tools import memoized_meth
 from devito import VectorTimeFunction, TensorTimeFunction
+from devito.types import Buffer
 
 from examples.seismic.elastic.operators import ForwardOperator
 
@@ -80,7 +81,7 @@ class ElasticWaveSolver:
         rec2 = rec2 or self.geometry.new_rec(name='rec2')
 
         # Create all the fields vx, vz, tau_xx, tau_zz, tau_xz
-        save_t = src.nt if save else None
+        save_t = src.nt if save else Buffer(1)
         v = v or VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
                                     space_order=self.space_order, time_order=1)
         tau = tau or TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
@@ -93,6 +94,6 @@ class ElasticWaveSolver:
         kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
+        summary = self.op_fwd(save_t).apply(src=src, rec1=rec1, rec2=rec2,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, v, tau, summary
