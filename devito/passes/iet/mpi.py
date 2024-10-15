@@ -24,7 +24,11 @@ def optimize_halospots(iet, **kwargs):
     """
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
-    iet = _merge_halospots(iet)
+
+    # iet = _drop_if_unwritten(iet, **kwargs)
+    # iet = _merge_halospots(iet)
+    # {<HaloSpot(tau)>: HaloScheme<tau,v>, <HaloSpot(v)>: HaloScheme<v>}
+
     iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
 
@@ -157,7 +161,13 @@ def _merge_halospots(iet):
         return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
-    rules = [rule0, rule1, rule2]
+    def test_rule(dep, hs, loc_indices):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
+        import pdb; pdb.set_trace()
+        return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+                   for d, v in loc_indices.items())
+
+    rules = [rule0, rule1, rule2, test_rule]
 
     # Analysis
     cond_mapper = MapHaloSpots().visit(iet)
@@ -165,10 +175,12 @@ def _merge_halospots(iet):
                         not isinstance(i.condition, GuardFactorEq)}
                    for hs, v in cond_mapper.items()}
 
-    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'groupby').visit(iet)
 
     mapper = {}
     for i, halo_spots in iter_mapper.items():
+        import pdb; pdb.set_trace()
+
         if i is None or len(halo_spots) <= 1:
             continue
 
@@ -176,6 +188,8 @@ def _merge_halospots(iet):
 
         hs0 = halo_spots[0]
         mapper[hs0] = hs0.halo_scheme
+
+        import pdb; pdb.set_trace()
 
         for hs1 in halo_spots[1:]:
             mapper[hs1] = hs1.halo_scheme
@@ -188,13 +202,16 @@ def _merge_halospots(iet):
 
             for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
-                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
-                        break
+                    # import pdb; pdb.set_trace()
+
+                    for rule in rules:
+                        if not rule(dep, hs1, v.loc_indices):
+                            break
                 else:
                     try:
                         hs = hs1.halo_scheme.project(f)
-                        mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
-                        mapper[hs1] = mapper[hs1].drop(f)
+                        # mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                        # mapper[hs1] = mapper[hs1].drop(f)
                     except ValueError:
                         # `hs1.loc_indices=<frozendict {t: t1}` and
                         # `hs0.loc_indices=<frozendict {t: t0}`
@@ -219,6 +236,7 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     This may be relaxed if Devito were to be used within existing legacy codes,
     which would call the generated library directly.
     """
+
     drop_unwritten = options['dist-drop-unwritten']
     if not callable(drop_unwritten):
         key = lambda f: drop_unwritten
@@ -230,6 +248,11 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         for f in hs.fmapper:
+            # Try specialize this pass before merge_halo_spots,
+            # so that we look into specific time slices
+            import pdb;pdb.set_trace()
+            # Look into  p hs.halo_scheme.loc_indices2
+
             if f not in writes and key(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
