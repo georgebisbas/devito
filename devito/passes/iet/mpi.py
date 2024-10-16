@@ -26,7 +26,7 @@ def optimize_halospots(iet, **kwargs):
     iet = _hoist_halospots(iet)
 
     # iet = _drop_if_unwritten(iet, **kwargs)
-    # iet = _merge_halospots(iet)
+    iet = _merge_halospots(iet)
     # {<HaloSpot(tau)>: HaloScheme<tau,v>, <HaloSpot(v)>: HaloScheme<v>}
 
     iet = _drop_if_unwritten(iet, **kwargs)
@@ -163,11 +163,11 @@ def _merge_halospots(iet):
 
     def test_rule(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
-    rules = [rule0, rule1, rule2, test_rule]
+    rules = [rule0, rule1, rule2]
 
     # Analysis
     cond_mapper = MapHaloSpots().visit(iet)
@@ -175,54 +175,94 @@ def _merge_halospots(iet):
                         not isinstance(i.condition, GuardFactorEq)}
                    for hs, v in cond_mapper.items()}
 
-    iter_mapper = MapNodes(Iteration, HaloSpot, 'groupby').visit(iet)
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
 
+    # items = list(iter_mapper.items())
+
+    # from itertools import combinations
+
+    # Generate all possible pairs of two items
+    # all_pairs = list(combinations(items, 2))
+
+    # pairs = []
     mapper = {}
-    for i, halo_spots in iter_mapper.items():
-        import pdb; pdb.set_trace()
+    # candidates = []
+    #
+    # import pdb; pdb.set_trace()
+    #
+    # for index, (i, halo_spots) in enumerate(iter_mapper.items()):
+    #    import pdb; pdb.set_trace()
+    #    candidates.append(  (i, halo_spots)  )
+    #
+    #
 
+    for i, halo_spots in iter_mapper.items():
         if i is None or len(halo_spots) <= 1:
+            # import pdb; pdb.set_trace()
             continue
+
+        print(i, halo_spots)
 
         scope = Scope([e.expr for e in FindNodes(Expression).visit(i)])
 
-        hs0 = halo_spots[0]
-        mapper[hs0] = hs0.halo_scheme
+        candidates = []
 
-        import pdb; pdb.set_trace()
+        for i, _ in enumerate(halo_spots):
+            hs0 = halo_spots[i]
+            # mapper[hs0] = hs0.halo_scheme
 
-        for hs1 in halo_spots[1:]:
-            mapper[hs1] = hs1.halo_scheme
+            # import pdb; pdb.set_trace()
 
-            # If there are Conditionals involved, both `hs0` and `hs1` must be
-            # within the same Conditional, otherwise we would break the control
-            # flow semantics
-            if cond_mapper.get(hs0) != cond_mapper.get(hs1):
-                continue
+            for hs1 in halo_spots[i+1:]:
+                # mapper[hs1] = hs1.halo_scheme
 
-            for f, v in hs1.fmapper.items():
-                for dep in scope.d_flow.project(f):
-                    # import pdb; pdb.set_trace()
+                # If there are Conditionals involved, both `hs0` and `hs1` must be
+                # within the same Conditional, otherwise we would break the control
+                # flow semantics
+                if cond_mapper.get(hs0) != cond_mapper.get(hs1):
+                    continue
 
-                    for rule in rules:
-                        if not rule(dep, hs1, v.loc_indices):
+                for f, v in hs1.fmapper.items():
+                    for dep in scope.d_flow.project(f):
+                        # # import pdb; pdb.set_trace()
+                        if not any(r(dep, hs1, v.loc_indices) for r in rules):
                             break
-                else:
-                    try:
-                        hs = hs1.halo_scheme.project(f)
-                        # mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
-                        # mapper[hs1] = mapper[hs1].drop(f)
-                    except ValueError:
-                        # `hs1.loc_indices=<frozendict {t: t1}` and
-                        # `hs0.loc_indices=<frozendict {t: t0}`
-                        pass
 
-    # Post-process analysis
-    mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-              for i, hs in mapper.items()}
+                    else:
+                        try:
+                            reps = (*hs0.functions, *hs1.functions).count(f)
+                            candidates.append((hs0, hs1, reps))
+                            # hs = hs1.halo_scheme.project(f)
 
-    # Transform the IET merging/dropping HaloSpots as according to the analysis
-    iet = Transformer(mapper, nested=True).visit(iet)
+                            # mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                            # mapper[hs1] = mapper[hs1].drop(f)
+                        except ValueError:
+                            # import pdb;pdb.set_trace()
+                            # TODO: Try to catch this
+                            # `hs1.loc_indices=<frozendict {t: t1}` and
+                            # `hs0.loc_indices=<frozendict {t: t0}`
+                            pass
+
+        if candidates:
+            ordered_candidates = sorted([candidates[-1]], key=lambda x: x[-1])
+            # import pdb; pdb.set_trace()
+            for hs0, hs1, _ in ordered_candidates:
+                mapper[hs0] = hs0.halo_scheme
+                mapper[hs1] = hs1.halo_scheme
+                for f, v in hs1.fmapper.items():
+                    hs = hs1.halo_scheme.project(f)
+                    mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                    mapper[hs1] = mapper[hs1].drop(f)
+
+
+            # import pdb; pdb.set_trace()
+
+        # Post-process analysis
+        mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
+                  for i, hs in mapper.items()}
+
+        # Transform the IET merging/dropping HaloSpots as according to the analysis
+        iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
 
@@ -250,7 +290,11 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
         for f in hs.fmapper:
             # Try specialize this pass before merge_halo_spots,
             # so that we look into specific time slices
-            import pdb;pdb.set_trace()
+
+            # scope = Scope([e.expr for e in FindNodes(Expression).visit(hs)])
+            # hs_reads = [i.reads for i in FindNodes(Expression).visit(hs)]
+            # import pdb;pdb.set_trace()
+            # p scope.getwrites(f)
             # Look into  p hs.halo_scheme.loc_indices2
 
             if f not in writes and key(f):

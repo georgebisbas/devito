@@ -56,7 +56,7 @@ op = Operator([u_v] + [u_t] + src_xx + rec_term)
 op(dt=dt)
 print(op.ccode)
 
-# import pdb; pdb.set_trace();
+# # import pdb; pdb.set_trace();
 
 print(norm(v[0]))
 plot_image(v[0].data[0])
