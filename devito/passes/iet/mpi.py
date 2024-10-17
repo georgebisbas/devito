@@ -22,7 +22,8 @@ def optimize_halospots(iet, **kwargs):
     Optimize the HaloSpots in ``iet``. HaloSpots may be dropped, merged and moved
     around in order to improve the halo exchange performance.
     """
-    iet = _drop_halospots(iet)
+    iet = _drop_inc_halospots(iet)
+    iet = _hoist_if_unwritten(iet)
     iet = _hoist_halospots(iet)
     iet = _merge_halospots(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
@@ -31,7 +32,7 @@ def optimize_halospots(iet, **kwargs):
     return iet, {}
 
 
-def _drop_halospots(iet):
+def _drop_inc_halospots(iet):
     """
     Remove HaloSpots that:
 
@@ -86,6 +87,7 @@ def _hoist_halospots(iet):
     imapper = defaultdict(list)
     for iters, halo_spots in MapNodes(Iteration, HaloSpot, 'groupby').visit(iet).items():
         for hs in halo_spots:
+
             hsmapper[hs] = hs.halo_scheme
 
             for f, v in hs.fmapper.items():
@@ -103,6 +105,99 @@ def _hoist_halospots(iet):
                     if any(set(a.ispace.dimensions) & all_candidates
                            for a in reads):
                         continue
+
+                    for dep in scopes[i].d_flow.project(f):
+                        if not any(r(dep, candidates, loc_dims) for r in rules):
+                            break
+                    else:
+                        hsmapper[hs] = hsmapper[hs].drop(f)
+                        imapper[i].append(hs.halo_scheme.project(f))
+                        break
+
+    # Post-process analysis
+    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
+              for i, hss in imapper.items()}
+    mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
+                   for i, hs in hsmapper.items()})
+
+    # Transform the IET hoisting/dropping HaloSpots as according to the analysis
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    # Clean up: de-nest HaloSpots if necessary
+    mapper = {}
+    for hs in FindNodes(HaloSpot).visit(iet):
+        if hs.body.is_HaloSpot:
+            halo_scheme = HaloScheme.union([hs.halo_scheme, hs.body.halo_scheme])
+            mapper[hs] = hs._rebuild(halo_scheme=halo_scheme, body=hs.body.body)
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
+
+
+def _hoist_if_unwritten(iet):
+    """
+    Hoist HaloSpots from inner to outer Iterations where all data dependencies
+    would be honored.
+    """
+
+    # Hoisting rules -- if the retval is True, then it means the input `dep` is not
+    # a stopper to halo hoisting
+
+    def rule0(dep, candidates, loc_dims):
+        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=({time}, {x})` => False
+        # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
+        #       `candidates=({x},)` => True
+        return (all(i & set(dep.distance_mapper) for i in candidates) and
+                not any(i & dep.cause for i in candidates) and
+                not any(i & loc_dims for i in candidates))
+
+    def rule1(dep, candidates, loc_dims):
+        # A reduction isn't a stopper to hoisting
+        return dep.write is not None and dep.write.is_reduction
+
+    rules = [rule0, rule1]
+
+    # Precompute scopes to save time
+    scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
+
+    # Analysis
+    hsmapper = {}
+    imapper = defaultdict(list)
+    for iters, halo_spots in MapNodes(Iteration, HaloSpot, 'groupby').visit(iet).items():
+        for hs in halo_spots:
+
+            hsmapper[hs] = hs.halo_scheme
+
+            for f, v in hs.fmapper.items():
+
+                # print(hs.fmapper[f])
+                import pdb; pdb.set_trace()
+
+
+                loc_dims = frozenset().union([q for d in v.loc_indices
+                                              for q in d._defines])
+
+                for n, i in enumerate(iters):
+                    if i not in scopes:
+                        continue
+
+                    candidates = [i.dim._defines for i in iters[n:]]
+
+                    all_candidates = set().union(*candidates)
+                    reads = scopes[i].getreads(f)
+                    writes = scopes[i].getwrites(f)
+
+                    sub_scopes = {i: Scope([e.expr for e in v])
+                                  for i, v in MapNodes().visit(i).items()}
+
+                    boolw = any(set(a.ispace.dimensions) & all_candidates for a in writes)
+
+                    boolr = any(set(a.ispace.dimensions) & all_candidates for a in reads)
+
+                    hs.fmapper[f].loc_indices
+
+
+                    import pdb; pdb.set_trace()
 
                     for dep in scopes[i].d_flow.project(f):
                         if not any(r(dep, candidates, loc_dims) for r in rules):
