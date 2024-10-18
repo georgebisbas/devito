@@ -96,7 +96,8 @@ class HaloScheme:
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
-        return "HaloScheme<%s>" % fnames
+        loc_indices = "[%s]" % ",".join(str(i) for i in self.loc_indices2)
+        return "HaloScheme<%s%s>" % (fnames, loc_indices)
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and

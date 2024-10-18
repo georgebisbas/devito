@@ -22,14 +22,10 @@ def optimize_halospots(iet, **kwargs):
     Optimize the HaloSpots in ``iet``. HaloSpots may be dropped, merged and moved
     around in order to improve the halo exchange performance.
     """
-    iet = _drop_halospots(iet)
-    iet = _hoist_halospots(iet)
-
+    # iet = _drop_halospots(iet)
+    # iet = _hoist_halospots(iet)
+    # iet = _merge_halospots(iet)
     # iet = _drop_if_unwritten(iet, **kwargs)
-    iet = _merge_halospots(iet)
-    # {<HaloSpot(tau)>: HaloScheme<tau,v>, <HaloSpot(v)>: HaloScheme<v>}
-
-    iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
 
     return iet, {}
@@ -104,6 +100,14 @@ def _hoist_halospots(iet):
 
                     all_candidates = set().union(*candidates)
                     reads = scopes[i].getreads(f)
+                    writes_list = list(scopes[i].getwrites(f))
+
+                    for w in writes_list:
+                        if not any(l in writes_list[0].aindices
+                               for l in hs.halo_scheme.loc_indices2):
+                            import pdb; pdb.set_trace()
+                            break
+
                     if any(set(a.ispace.dimensions) & all_candidates
                            for a in reads):
                         continue
@@ -112,6 +116,7 @@ def _hoist_halospots(iet):
                         if not any(r(dep, candidates, loc_dims) for r in rules):
                             break
                     else:
+                        import pdb; pdb.set_trace()
                         hsmapper[hs] = hsmapper[hs].drop(f)
                         imapper[i].append(hs.halo_scheme.project(f))
                         break
@@ -141,6 +146,82 @@ def _merge_halospots(iet):
     Merge HaloSpots on the same Iteration tree level where all data dependencies
     would be honored.
     """
+    # Merge rules -- if the retval is True, then it means the input `dep` is not
+    # a stopper to halo merging
+    def rule0(dep, hs, loc_indices):
+        # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` => True
+        return not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
+                       for d in dep.cause)
+
+    def rule1(dep, hs, loc_indices):
+        # TODO This is apparently never hit, but feeling uncomfortable to remove it
+        return (dep.is_regular and
+                dep.read is not None and
+                all(not any(dep.read.touched_halo(d.root)) for d in dep.cause))
+
+    def rule2(dep, hs, loc_indices):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
+        return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+                   for d, v in loc_indices.items())
+
+    rules = [rule0, rule1, rule2]
+
+    # Analysis
+    cond_mapper = MapHaloSpots().visit(iet)
+    cond_mapper = {hs: {i for i in v if i.is_Conditional and
+                        not isinstance(i.condition, GuardFactorEq)}
+                   for hs, v in cond_mapper.items()}
+
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+
+    mapper = {}
+    for i, halo_spots in iter_mapper.items():
+        if i is None or len(halo_spots) <= 1:
+            continue
+
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(i)])
+
+        hs0 = halo_spots[0]
+        mapper[hs0] = hs0.halo_scheme
+
+        for hs1 in halo_spots[1:]:
+            mapper[hs1] = hs1.halo_scheme
+
+            # If there are Conditionals involved, both `hs0` and `hs1` must be
+            # within the same Conditional, otherwise we would break the control
+            # flow semantics
+            if cond_mapper.get(hs0) != cond_mapper.get(hs1):
+                continue
+
+            for f, v in hs1.fmapper.items():
+                for dep in scope.d_flow.project(f):
+                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
+                        break
+                else:
+                    try:
+                        hs = hs1.halo_scheme.project(f)
+                        mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                        mapper[hs1] = mapper[hs1].drop(f)
+                    except ValueError:
+                        # `hs1.loc_indices=<frozendict {t: t1}` and
+                        # `hs0.loc_indices=<frozendict {t: t0}`
+                        pass
+
+    # Post-process analysis
+    mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
+              for i, hs in mapper.items()}
+
+    # Transform the IET merging/dropping HaloSpots as according to the analysis
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
+
+
+def _merge_halospots2(iet):
+    """
+    Merge HaloSpots on the same Iteration tree level where all data dependencies
+    would be honored.
+    """
 
     # Merge rules -- if the retval is True, then it means the input `dep` is not
     # a stopper to halo merging
@@ -158,12 +239,6 @@ def _merge_halospots(iet):
 
     def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-        return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
-                   for d, v in loc_indices.items())
-
-    def test_rule(dep, hs, loc_indices):
-        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-        # import pdb; pdb.set_trace()
         return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
@@ -288,7 +363,6 @@ def _merge_halospots(iet):
 #            halo_scheme = HaloScheme.union([hs.halo_scheme, hs.body.halo_scheme])
 #            mapper[hs] = hs._rebuild(halo_scheme=halo_scheme, body=hs.body.body)
 #    iet = Transformer(mapper, nested=True).visit(iet)
-
 
 
 def _drop_if_unwritten(iet, options=None, **kwargs):
