@@ -769,7 +769,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return RegionMeta(offset, size)
 
     def _halo_exchange(self):
-        """Perform the halo exchange with the neighboring processes."""
+        """
+        Perform the halo exchange with the neighboring processes.
+        This is a Python-land operation for e.g. preparing the data for
+        viewing in Python or executing an operator in C/C++.
+        """
         if not MPI.Is_initialized() or \
                 MPI.COMM_WORLD.size == 1 or \
                 not configuration['mpi'] or \

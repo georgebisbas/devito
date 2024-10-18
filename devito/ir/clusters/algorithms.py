@@ -417,14 +417,16 @@ class HaloComms(Queue):
                 continue
 
             points = set()
-            for f in hs.fmapper:
-                for a in c.scope.getreads(f):
-                    points.add(a.access)
 
-            # We also add all written symbols to ultimately create mock WARs
-            # with `c`, which will prevent the newly created HaloTouch to ever
-            # be rescheduled after `c` upon topological sorting
-            points.update(a.access for a in c.scope.accesses if a.is_write)
+            for f in hs.fmapper:
+                for r in c.scope.getreads(f):
+                    points.add(r.access)
+
+                # We also add all written symbols to ultimately create mock WARs
+                # with `c`, which will prevent the newly created HaloTouch to ever
+                # be rescheduled after `c` upon topological sorting
+                for w in c.scope.getwrites(f):
+                    points.add(w.access)
 
             # Sort for determinism
             # NOTE: not sorting might impact code generation. The order of

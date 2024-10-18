@@ -40,6 +40,8 @@ def _drop_halospots(iet):
     """
     mapper = defaultdict(set)
 
+    import pdb; pdb.set_trace();
+
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         scope = Scope([i.expr for i in expressions])
