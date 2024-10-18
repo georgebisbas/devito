@@ -196,14 +196,14 @@ def _merge_halospots(iet):
     #
     #
 
-    for i, halo_spots in iter_mapper.items():
-        if i is None or len(halo_spots) <= 1:
+    for iter, halo_spots in iter_mapper.items():
+        if iter is None or len(halo_spots) <= 1:
             # import pdb; pdb.set_trace()
             continue
 
-        print(i, halo_spots)
+        print(iter, halo_spots)
 
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(i)])
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(iter)])
 
         candidates = []
 
@@ -245,17 +245,25 @@ def _merge_halospots(iet):
 
         if candidates:
             ordered_candidates = sorted([candidates[-1]], key=lambda x: x[-1])
-            # import pdb; pdb.set_trace()
-            for hs0, hs1, _ in ordered_candidates:
+
+            import pdb; pdb.set_trace()
+            for hs0, hs1, reps in ordered_candidates:
+                if reps < 2:
+                    continue
+                # ???
+                hs0 = hs0._rebuild(halo_scheme=hs0.halo_scheme, body=iter)
+                # ?
                 mapper[hs0] = hs0.halo_scheme
                 mapper[hs1] = hs1.halo_scheme
                 for f, v in hs1.fmapper.items():
-                    hs = hs1.halo_scheme.project(f)
-                    mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
-                    mapper[hs1] = mapper[hs1].drop(f)
+                    # hs = hs1.halo_scheme.project(f)
+                    # mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
 
+                    # This is dropped? or has to be hoisted
+                    mapper[hs1] = mapper[hs1].drop(f)  # And it becomes void
+                    import pdb; pdb.set_trace()
 
-            # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
 
         # Post-process analysis
         mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
@@ -265,6 +273,22 @@ def _merge_halospots(iet):
         iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
+
+#    # Post-process analysis
+#    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
+#              for i, hss in imapper.items()}
+#    mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
+#                   for i, hs in hsmapper.items()})
+
+
+#    # Clean up: de-nest HaloSpots if necessary
+#    mapper = {}
+#    for hs in FindNodes(HaloSpot).visit(iet):
+#        if hs.body.is_HaloSpot:
+#            halo_scheme = HaloScheme.union([hs.halo_scheme, hs.body.halo_scheme])
+#            mapper[hs] = hs._rebuild(halo_scheme=halo_scheme, body=hs.body.body)
+#    iet = Transformer(mapper, nested=True).visit(iet)
+
 
 
 def _drop_if_unwritten(iet, options=None, **kwargs):
