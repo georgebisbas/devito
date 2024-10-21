@@ -22,8 +22,9 @@ def optimize_halospots(iet, **kwargs):
     Optimize the HaloSpots in ``iet``. HaloSpots may be dropped, merged and moved
     around in order to improve the halo exchange performance.
     """
+    import pdb; pdb.set_trace();
     # iet = _drop_halospots(iet)
-    # iet = _hoist_halospots(iet)
+    iet = _hoist_halospots(iet)
     # iet = _merge_halospots(iet)
     # iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
@@ -102,11 +103,18 @@ def _hoist_halospots(iet):
                     reads = scopes[i].getreads(f)
                     writes_list = list(scopes[i].getwrites(f))
 
+                    # We need to check that 
                     for w in writes_list:
                         if not any(l in writes_list[0].aindices
-                               for l in hs.halo_scheme.loc_indices2):
-                            import pdb; pdb.set_trace()
-                            break
+                                   for l in hs.halo_scheme.loc_indices2):
+                            for hh in halo_spots:
+                                if hh is not hs and any(h in hh.functions for h in hs.functions):
+                                    # p list(hh.functions)[0] is list(hs.functions)[0]
+                                    import pdb; pdb.set_trace()
+                                    break
+
+                    import pdb; pdb.set_trace()
+                            # break
 
                     if any(set(a.ispace.dimensions) & all_candidates
                            for a in reads):
