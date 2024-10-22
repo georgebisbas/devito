@@ -1357,6 +1357,7 @@ class TestCodeGeneration:
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
+        print(op.ccode)
         assert len(calls) == 1
 
         op.apply(time_M=1)
