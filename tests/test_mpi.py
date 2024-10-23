@@ -1186,7 +1186,7 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
-
+        import pdb; pdb.set_trace()
         # Also make sure the Call is at the right place in the IET
         assert op.body.body[-1].body[1].body[0].body[0].body[0].body[0].is_Call
         assert op.body.body[-1].body[1].body[0].body[0].body[1].is_Iteration

@@ -25,7 +25,7 @@ def optimize_halospots(iet, **kwargs):
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
 
-    iet = _merge_halospots_byfunc(iet)
+    # iet = _merge_halospots_byfunc(iet)
 
     iet = _merge_halospots(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
