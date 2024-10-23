@@ -71,11 +71,7 @@ def as_mapper(iterable, key=None, get=None):
     get = get or (lambda i: i)
     mapper = OrderedDict()
     for i in iterable:
-        try:
-            mapper.setdefault(key(i), []).append(get(i))
-        except TypeError:
-            import pdb; pdb.set_trace()
-            mapper.setdefault(key(i), []).append(i)
+        mapper.setdefault(key(i), []).append(get(i))
     return mapper
 
 

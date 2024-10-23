@@ -284,13 +284,12 @@ def _merge_halospots_byfunc(iet):
                     for dep in scope.d_flow.project(f):
                         if not any(r(dep, hs1, v.loc_indices) for r in rules):
                             break
-
                     else:
                         try:
                             reps = (*hs0.functions, *hs1.functions).count(f)
                             candidates.append((hs0, hs1, reps))
                         except ValueError:
-                            import pdb;pdb.set_trace()
+                            # import pdb;pdb.set_trace()
                             pass
 
         if candidates:
@@ -357,8 +356,6 @@ def _merge_halospots_byfunc(iet):
         iet = Transformer(mapper, nested=False).visit(iet)
 
     # Clean up: de-nest HaloSpots if necessary
-    # import pdb;pdb.set_trace()
-
     # THis also merges HaloSpots that have different loc_indices
     # iet = denest_halospots(iet)
 
