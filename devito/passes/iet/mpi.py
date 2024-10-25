@@ -278,11 +278,12 @@ def _merge_halospots_byfunc(iet):
                 if cond_mapper.get(hs0) != cond_mapper.get(hs1):
                     continue
 
-                # Ensure no common loc_indices are shared for the two candidates        
-                if any(i in hs0.halo_scheme.loc_indices2 for i in hs1.halo_scheme.loc_indices2):  # noqa
+                # Ensure no common loc_indices are shared for the two candidates
+                if any(i in hs0.halo_scheme.loc_values for i in hs1.halo_scheme.loc_values):  # noqa
                     continue
 
                 for f, v in hs1.fmapper.items():
+
                     if not hs1.halo_scheme.fmapper[f].loc_indices:
                         continue
 
