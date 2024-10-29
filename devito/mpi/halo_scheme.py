@@ -54,6 +54,13 @@ class HaloSchemeEntry:
                      frozenset(self.halos),
                      frozenset(self.dims)))
 
+    def rebuild(self, **kwargs):
+        loc_indices = kwargs.get('loc_indices', self.loc_indices)
+        loc_dirs = kwargs.get('loc_dirs', self.loc_dirs)
+        halos = kwargs.get('halos', self.halos)
+        dims = kwargs.get('dims', self.dims)
+        return HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
+
 
 Halo = namedtuple('Halo', 'dim side')
 
@@ -158,7 +165,6 @@ class HaloScheme:
         """
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
-        # import pdb; pdb.set_trace()
         halo_schemes = [hs for hs in halo_schemes if hs is not None]
         if not halo_schemes:
             return None
@@ -677,9 +683,8 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     # Nope, let's try with the next Indexed, if any
                     continue
 
-                hse = HaloSchemeEntry(frozendict(loc_indices),
-                                      frozendict(loc_dirs),
-                                      hse0.halos, hse0.dims)
+                hse = hse0.rebuild(loc_indices=frozendict(loc_indices),
+                                   loc_dirs=frozendict(loc_dirs))
 
             else:
                 continue
