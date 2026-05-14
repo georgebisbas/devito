@@ -33,6 +33,7 @@ class HaloExchangeBuilder:
     def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None,
                 **kwargs):
         obj = object.__new__(mpi_registry[mpimode])
+        obj.mpimode = mpimode
 
         obj.rcompile = rcompile
         obj.sregistry = sregistry
@@ -554,7 +555,8 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Pass the fixed mapper e.g. {t: otime}
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
-
+        if self.mpimode == 'enriched-basic2':
+            return MPIMsgEnrichedBasic2('msg%d' % key, f, hse.halos, fixed)
         return MPIMsgBasic2('msg%d' % key, f, hse.halos, fixed)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
@@ -1128,6 +1130,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 mpi_registry = {
     'basic': BasicHaloExchangeBuilder,
     'basic2': Basic2HaloExchangeBuilder,
+    'enriched-basic2': Basic2HaloExchangeBuilder,
     'diag': DiagHaloExchangeBuilder,
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
@@ -1351,7 +1354,7 @@ class MPIMsgBase(CompositeObject):
 
 class MPIMsg(MPIMsgBase):
 
-    def __init__(self, name, target, halos):
+    def __init__(self, name, target, halos, fixed=None):
         self._target = target
         self._halos = halos
 
@@ -1359,6 +1362,7 @@ class MPIMsg(MPIMsgBase):
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
+        self._fixed = fixed or {}
         self._allocator = None
         self._memfree_args = []
 
@@ -1493,6 +1497,134 @@ class MPIMsgEnriched(MPIMsg):
             entry.ofss = (c_int*len(ofss))(*ofss)
 
         return {self.name: self.value}
+
+
+class MPIMsgEnrichedBasic2(MPIMsgBase):
+
+    """
+    An enriched message structure combining pre-allocated buffers with
+    direct rank and offset information.
+
+    Combines the performance benefits of:
+    - Pre-allocated buffers (from basic2)
+    - Enriched messaging with direct rank/offset lookups (from enriched)
+    - Works with diagonal halo communication patterns
+
+    Fields:
+    - bufg/bufs: Pre-allocated send/recv buffers
+    - sizes: Buffer sizes per dimension
+    - rrecv/rsend: MPI request handles for async operations
+    - from/to: Direct rank IDs (no neighborhood lookup needed)
+    - ofsg/ofss: Direct offsets for gather/scatter operations
+    """
+
+    _C_field_ofss = 'ofss'
+    _C_field_ofsg = 'ofsg'
+    _C_field_from = 'fromrank'
+    _C_field_to = 'torank'
+
+    fields = MPIMsgBase.fields + [
+        (_C_field_ofss, POINTER(c_int)),
+        (_C_field_ofsg, POINTER(c_int)),
+        (_C_field_from, c_int),
+        (_C_field_to, c_int)
+    ]
+
+    def __init__(self, name, target, halos):
+        self._target = target
+        self._halos = halos
+
+        super().__init__(name, 'msg', self.fields)
+
+        # Required for buffer allocation/deallocation before/after jumping/returning
+        # to/from C-land
+        self._allocator = None
+        self._memfree_args = []
+
+    def _arg_defaults(self, allocator, alias=None, args=None):
+        """
+        Initialize message entries with pre-allocated buffers and enriched
+        communication metadata. All ranks and offsets are pre-computed here
+        to minimize runtime overhead.
+        """
+        self._allocator = allocator
+
+        f = alias or self.target.c0
+        fixed = self._fixed
+        neighborhood = f.grid.distributor.neighborhood
+        dimensions = [d for d in f.dimensions if d not in fixed]
+
+        for i, halo in enumerate(self.halos):
+            entry = self.value[i]
+
+            mapper = dict(zip(*halo))
+
+            # Compute buffer shape for this halo. This works for both
+            # edge-only and diagonal halo descriptors.
+            shape = []
+            for dim in dimensions:
+                side = mapper.get(dim, CENTER)
+                try:
+                    shape.append(getattr(f._size_owned[dim], side.name))
+                except AttributeError:
+                    assert side == CENTER
+                    shape.append(self._as_number(f._size_nopad[dim], args))
+
+            # Pre-allocate send/recv buffers
+            self._allocate_buffers(f, shape, entry)
+
+            # Direct rank IDs - no neighborhood lookups needed at runtime.
+            # `halo.side` indexing works for diagonal halos; edge-only halos
+            # are keyed by (dim, side).
+            if isinstance(halo.side, tuple):
+                entry.torank = neighborhood[halo.side]
+                entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
+            else:
+                dim = halo.dim
+                entry.torank = neighborhood[dim][halo.side]
+                entry.fromrank = neighborhood[dim][halo.side.flip()]
+
+            # Gather offsets (owned region)
+            ofsg = []
+            for dim in dimensions:
+                side = mapper.get(dim, CENTER)
+                try:
+                    v = getattr(f._offset_owned[dim], side.name)
+                    ofsg.append(self._as_number(v, args))
+                except AttributeError:
+                    assert side == CENTER
+                    ofsg.append(f._offset_owned[dim].left)
+            entry.ofsg = (c_int*len(ofsg))(*ofsg)
+
+            # Scatter offsets (halo region, flipped)
+            ofss = []
+            for dim in dimensions:
+                side = mapper.get(dim, CENTER)
+                try:
+                    v = getattr(f._offset_halo[dim], side.flip().name)
+                    ofss.append(self._as_number(v, args))
+                except AttributeError:
+                    assert side == CENTER
+                    ofss.append(f._offset_owned[dim].left)
+            entry.ofss = (c_int*len(ofss))(*ofss)
+
+        return {self.name: self.value}
+
+    def _arg_values(self, args=None, **kwargs):
+        # Any will do
+        for f in self.target.handles:
+            try:
+                alias = kwargs[f.name]
+                break
+            except KeyError:
+                pass
+        else:
+            alias = f
+
+        return self._arg_defaults(args.allocator, alias=alias, args=args)
+
+    def _arg_apply(self, *args, **kwargs):
+        self._C_memfree()
 
 
 class MPIRegion(CompositeObject):

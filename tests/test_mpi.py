@@ -784,7 +784,7 @@ class TestOperatorSimple:
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'diag'), (4, 'overlap'),
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'enriched-basic2'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
     def test_trivial_eq_2d(self, mode):
         grid = Grid(shape=(8, 8,))
@@ -1577,6 +1577,7 @@ class TestCodeGeneration:
         (1, 'overlap2'),
         (1, 'diag2'),
         (1, 'full'),
+        (1, 'enriched-basic2'),
     ])
     def test_min_code_size(self, mode):
         grid = Grid(shape=(10, 10, 10))

@@ -194,7 +194,17 @@ def mmin(f):
     if isinstance(f, dv.Constant):
         return f.data
     elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.min(f.data_ro_domain)
+        # Try to access data in order of preference
+        if hasattr(f, 'data_ro_domain'):
+            data_view = f.data_ro_domain
+        elif hasattr(f, 'data_domain'):
+            data_view = f.data_domain
+        elif hasattr(f, 'data'):
+            data_view = f.data
+        else:
+            raise AttributeError("Function object has no accessible data attribute")
+        
+        v = np.min(data_view)
         if f.grid is None or not dv.configuration['mpi']:
             return v.item()
         else:
@@ -218,7 +228,17 @@ def mmax(f):
     if isinstance(f, dv.Constant):
         return f.data
     elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.max(f.data_ro_domain)
+        # Try to access data in order of preference
+        if hasattr(f, 'data_ro_domain'):
+            data_view = f.data_ro_domain
+        elif hasattr(f, 'data_domain'):
+            data_view = f.data_domain
+        elif hasattr(f, 'data'):
+            data_view = f.data
+        else:
+            raise AttributeError("Function object has no accessible data attribute")
+        
+        v = np.max(data_view)
         if f.grid is None or not dv.configuration['mpi']:
             return v.item()
         else:
