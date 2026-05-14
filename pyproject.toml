@@ -83,6 +83,9 @@ select = ["E", "W", "F", "B", "UP", "SIM", "RUF022"]
 # But ignore these inconvenient rules
 ignore = ["F403", "E226", "E731", "E275", "F405", "E722", "E741", "W605"]
 
+[tool.ruff.lint.per-file-ignores]
+"examples/seismic/tutorials/08_snapshotting.ipynb" = ["E265"]
+
 [tool.isort]
 line_length = 90
 known_first_party = ["devito", "examples"]
